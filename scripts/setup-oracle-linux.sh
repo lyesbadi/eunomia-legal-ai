@@ -126,7 +126,6 @@ init_system() {
         git \
         curl \
         wget \
-        htop \
         nano \
         vim \
         unzip \
@@ -135,8 +134,7 @@ init_system() {
         bind-utils \
         openssl \
         ca-certificates \
-        gnupg \
-        lsb-release \
+        gnupg2 \
         yum-utils \
         device-mapper-persistent-data \
         lvm2 &>> "$LOG_FILE" || {
@@ -484,10 +482,10 @@ install_fail2ban() {
     
     # Install fail2ban
     log INFO "Installing Fail2ban..."
+    dnf install -y epel-release &>> "$LOG_FILE"
     dnf install -y fail2ban fail2ban-systemd &>> "$LOG_FILE" || {
-        log ERROR "Fail2ban installation failed"
-        exit 1
-    }
+    	log WARN "Fail2ban installation failed (non-critical)"
+}
     
     # Configure SSH jail
     log INFO "Configuring SSH jail..."
