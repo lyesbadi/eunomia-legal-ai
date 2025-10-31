@@ -363,7 +363,15 @@ services:
           memory: 1.5G
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:6333/healthz",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
