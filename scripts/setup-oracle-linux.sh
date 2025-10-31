@@ -480,35 +480,58 @@ configure_firewall() {
 install_fail2ban() {
     log STEP "Step 8: Installing and configuring Fail2ban"
 
-    # Install the EPEL repository for Oracle Linux 8
+    # VERIFY INSTALLATION
+    log INFO "Checking if Fail2ban is already installed..."
+    if command_exists fail2ban-client; then
+        log INFO "Fail2ban is already installed. Skipping installation."
+        
+        # Make sure it's running
+        if ! systemctl is-active --quiet fail2ban; then
+            log INFO "Fail2ban service is not running. Starting..."
+            systemctl start fail2ban
+            systemctl enable fail2ban &>> "$LOG_FILE"
+        fi
+        
+        log INFO "Fail2ban is active and configured."
+        return 0 # Quit the function
+    fi
+
+    # Install EPEL repository
     log INFO "Installing EPEL repository for Oracle Linux 8..."
     dnf install -y oracle-epel-release-el8 &>> "$LOG_FILE" || {
         log ERROR "Failed to install EPEL repository. Fail2ban cannot be installed."
         exit 1
     }
 
-    # Activate the 'CodeReady Builder' repository for dependencies
+    # enable CodeReady Builder repository
     log INFO "Enabling CodeReady Builder repository for dependencies..."
     dnf config-manager --set-enabled ol8_codeready_builder &>> "$LOG_FILE" || {
         log WARN "Could not enable ol8_codeready_builder repository. This might cause dependency issues."
     }
+    
+    # Enable EPEL repository
+    log INFO "Enabling EPEL repository..."
+    dnf config-manager --set-enabled ol8_developer_EPEL &>> "$LOG_FILE" || {
+        log ERROR "Failed to enable ol8_developer_EPEL repository."
+        exit 1
+    }
 
-    # CLean the cache and rebuild it to include the new repository
+    # clean and rebuild dnf cache
     log INFO "Cleaning and rebuilding dnf cache..."
     dnf clean all &>> "$LOG_FILE"
     dnf makecache &>> "$LOG_FILE"
 
-    # Install fail2ban (now that the repos and cache are ready)
+    # Install fail2ban
     log INFO "Installing Fail2ban from EPEL repository..."
     dnf install -y fail2ban fail2ban-systemd &>> "$LOG_FILE" || {
         log ERROR "Fail2ban installation failed. Check dnf logs or run 'sudo dnf install -y fail2ban' manually for details."
         exit 1
     }
 
-    # Create the jail configuration folder if it doesn't exist
+    # Create fail2ban configuration directory if missing
     mkdir -p /etc/fail2ban/jail.d
 
-    # Configure the "jail" SSH
+    # Configure SSH jail
     log INFO "Configuring SSH jail..."
     cat > /etc/fail2ban/jail.d/sshd.local <<'EOF'
 [sshd]
