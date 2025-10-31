@@ -1,26 +1,25 @@
 # ==============================================================================
-# EUNOMIA Legal AI Platform - Production Dependencies (Linux ARM64)
+# EUNOMIA Legal AI Platform - Development Dependencies (Windows)
 # ==============================================================================
-# Python: 3.11 (installed on Oracle Linux 8)
-# Target: Docker containers on Oracle Linux 8 (ARM64)
-# Usage: pip install -r requirements.txt
+# Python: 3.13+ compatible
+# Usage: pip install -r requirements-dev.txt
 
 # Core Web Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
-python-multipart==0.0.6
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-multipart==0.0.17
 
-# Database - PostgreSQL Async
+# Database - PostgreSQL Async (NO psycopg2-binary for Windows)
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 alembic==1.14.0
-psycopg2-binary==2.9.10  # For Alembic sync operations
+# psycopg2-binary excluded - requires PostgreSQL libs on Windows
 
 # Database - Redis
 redis==5.2.0
-hiredis==2.3.2  # Faster Redis parser
+# hiredis excluded - requires C compiler on Windows
 
 # Security & Authentication
 passlib[bcrypt]==1.7.4
@@ -34,9 +33,9 @@ flower==2.0.1
 # Vector Database - Qdrant
 qdrant-client==1.12.1
 
-# AI/ML - Hugging Face Transformers
+# AI/ML - Hugging Face Transformers (CPU only for Windows)
 transformers==4.46.3
-torch==2.2.2  # Stable version for production ARM64
+torch==2.7.1  # Latest version compatible with Python 3.13
 sentencepiece==0.2.0
 protobuf==5.29.1
 accelerate==1.2.1
@@ -50,7 +49,7 @@ ollama==0.4.4
 # Document Processing
 pypdf==5.1.0
 python-docx==1.1.2
-python-magic==0.4.27  # File type detection
+filetype==1.2.0  # Alternative to python-magic (pure Python)
 
 # HTTP Client
 httpx==0.28.1
@@ -63,13 +62,18 @@ email-validator==2.2.0
 # Logging & Monitoring
 loguru==0.7.3
 prometheus-client==0.21.0
-sentry-sdk[fastapi]==2.19.2
 
-# Testing (for CI/CD)
+# Testing
 pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-cov==6.0.0
 faker==33.1.0
+
+# Development Tools
+black==24.10.0
+ruff==0.8.4
+mypy==1.13.0
+pre-commit==4.0.1
 
 # Utilities
 python-dotenv==1.0.1
@@ -83,28 +87,27 @@ pytz==2024.2
 # File Storage
 aiofiles==24.1.0
 
-# Data Processing
-pandas==2.2.3
-numpy==2.0.2
-
-# NLP - Spacy with French model
+# NLP - Spacy (Optional in dev)
 spacy==3.8.2
-fr-core-news-md @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_md-3.8.0/fr_core_news_md-3.8.0-py3-none-any.whl
 
 # ==============================================================================
-# PRODUCTION OPTIMIZATIONS
+# DEVELOPMENT-ONLY PACKAGES
 # ==============================================================================
-uvloop==0.21.0  # Faster event loop
-httptools==0.6.4  # Faster HTTP parsing
+ipython==8.31.0
+ipdb==0.13.13
+rich==13.9.4
+watchfiles==1.0.0
 
 # ==============================================================================
-# NOTES
+# NOTES FOR WINDOWS DEVELOPMENT
 # ==============================================================================
-# - Python 3.11 installed on Oracle Linux 8 ARM64
-# - All packages are compatible with Python 3.11 and ARM64
-# - Install with: pip install -r requirements.txt
-# - System dependencies required (install via dnf):
-#   * python3.11-devel
-#   * postgresql-devel
-#   * gcc
-#   * libmagic
+# 1. PostgreSQL: Use Docker
+#    docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=dev postgres:16-alpine
+#
+# 2. Redis: Use Docker
+#    docker run -d -p 6379:6379 redis:7-alpine
+#
+# 3. Qdrant: Use Docker
+#    docker run -d -p 6333:6333 qdrant/qdrant
+#
+# 4. Ollama: Download from https://ollama.com for Windows
