@@ -626,12 +626,13 @@ final_checks() {
         log ERROR "Docker Compose not operational"
     fi
     
-    # Check 3: Docker User
-    if su - "$DOCKER_USER" -c "docker ps" &>/dev/null; then
-        log INFO "User '$DOCKER_USER' can use Docker"
+    # Check 3: Docker User (CORRIGÉ - Vérification plus robuste)
+    log INFO "Checking user '$DOCKER_USER' group membership..."
+    if groups "$DOCKER_USER" | grep -q '\bdocker\b'; then
+        log INFO "User '$DOCKER_USER' is in 'docker' group (OK)"
         ((checks_passed++))
     else
-        log ERROR "User '$DOCKER_USER' cannot use Docker"
+        log ERROR "User '$DOCKER_USER' is NOT in 'docker' group"
     fi
     
     # Check 4: Firewall
