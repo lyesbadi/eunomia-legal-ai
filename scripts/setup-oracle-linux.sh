@@ -607,6 +607,11 @@ install_certbot() {
 final_checks() {
     log STEP "Step 10: Final verifications"
     
+    # Désactiver la sortie en cas d'erreur pour cette fonction de vérification
+    # Cela permet au script de vérifier les 10 points et de rapporter
+    # les échecs sans s'arrêter prématurément.
+    set +e
+    
     local checks_passed=0
     local checks_total=10
     
@@ -626,13 +631,16 @@ final_checks() {
         log ERROR "Docker Compose not operational"
     fi
     
-    # Check 3: Docker User (CORRIGÉ - Vérification plus robuste)
+    # Check 3: Docker User (Utilisation de 'groups' pour plus de robustesse)
     log INFO "Checking user '$DOCKER_USER' group membership..."
     if groups "$DOCKER_USER" | grep -q '\bdocker\b'; then
         log INFO "User '$DOCKER_USER' is in 'docker' group (OK)"
         ((checks_passed++))
     else
         log ERROR "User '$DOCKER_USER' is NOT in 'docker' group"
+        # Tentative d'ajout (correction au cas où)
+        usermod -aG docker "$DOCKER_USER"
+        log WARN "Attempted to add '$DOCKER_USER' to 'docker' group. Please re-login or check manually."
     fi
     
     # Check 4: Firewall
@@ -702,6 +710,9 @@ final_checks() {
     log INFO "  RESULT: $checks_passed/$checks_total checks passed"
     log INFO "==========================================================="
     echo ""
+    
+    # Réactiver la sortie en cas d'erreur pour le reste du script
+    set -e
     
     if [[ $checks_passed -eq $checks_total ]]; then
         log INFO "All checks OK - System ready for EUNOMIA"
