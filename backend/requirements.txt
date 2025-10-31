@@ -1,0 +1,54 @@
+# ==============================================================================
+# EUNOMIA - Backend Python Dependencies
+# ==============================================================================
+
+# FastAPI + ASGI
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Redis + Celery
+redis==5.0.1
+celery==5.3.6
+flower==2.0.1
+
+# AI / ML - Hugging Face
+transformers==4.36.2
+torch==2.1.2
+sentence-transformers==2.3.1
+tokenizers==0.15.1
+
+# Qdrant (Vector DB)
+qdrant-client==1.7.3
+
+# Ollama Client
+ollama==0.1.7
+
+# Auth + Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+bcrypt==4.1.2
+
+# HTTP Client
+httpx[http2]==0.26.0
+
+# File Processing
+python-magic==0.4.27
+pypdf==4.0.1
+python-docx==1.1.0
+
+# Monitoring
+prometheus-client==0.19.0
+prometheus-fastapi-instrumentator==6.1.0
+
+# Utils
+python-dotenv==1.0.1
+email-validator==2.1.0
