@@ -1,0 +1,564 @@
+version: '3.8'
+
+# ==============================================================================
+# EUNOMIA - Production Docker Compose Configuration
+# Oracle Cloud Free Tier (4 OCPU / 24 GB RAM)
+# ==============================================================================
+
+services:
+
+  # ============================================================================
+  # LAYER 1: EDGE (REVERSE PROXY)
+  # ============================================================================
+
+  nginx:
+    image: nginx:alpine
+    container_name: eunomia-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend-api-1
+      - backend-api-2
+    networks:
+      - frontend_net
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 100M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================================
+  # LAYER 2: BACKEND API (LOAD BALANCED)
+  # ============================================================================
+
+  backend-api-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-api-1
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - INSTANCE_ID=1
+      - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./backend/logs:/app/logs
+      - uploads_data:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 500M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  backend-api-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-api-2
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - INSTANCE_ID=2
+      - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./backend/logs:/app/logs
+      - uploads_data:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 500M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================================================
+  # LAYER 3 + 4: AI SERVICES (Hugging Face models loaded in API containers)
+  # LAYER 4: LLM GENERATIVE
+  # ============================================================================
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: eunomia-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+          cpus: '2.0'
+        reservations:
+          memory: 8G
+          cpus: '1.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # ============================================================================
+  # LAYER 5: ASYNC WORKERS (CELERY)
+  # ============================================================================
+
+  celery-worker-llm:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-celery-llm
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker -Q llm_queue --concurrency=1 --loglevel=info
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./backend/logs:/app/logs
+      - uploads_data:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - redis
+      - postgres
+      - ollama
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  celery-worker-embeddings:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-celery-embeddings
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker -Q embeddings_queue --concurrency=2 --loglevel=info
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+    volumes:
+      - ./backend/logs:/app/logs
+      - uploads_data:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - redis
+      - postgres
+      - qdrant
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 500M
+          cpus: '0.5'
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-celery-beat
+    restart: unless-stopped
+    command: celery -A app.core.celery_app beat --loglevel=info
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+          cpus: '0.2'
+        reservations:
+          memory: 100M
+          cpus: '0.1'
+
+  # ============================================================================
+  # LAYER 6: DATA STORES
+  # ============================================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: eunomia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eunomia_db
+      POSTGRES_USER: eunomia_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums --encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=128MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_connections=100
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eunomia_user -d eunomia_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: eunomia-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 600M
+          cpus: '0.5'
+        reservations:
+          memory: 300M
+          cpus: '0.3'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: eunomia-qdrant
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__CLUSTER__ENABLED: "false"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1.5G
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================================================
+  # LAYER 7: OBSERVABILITY
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: eunomia-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+          cpus: '0.5'
+        reservations:
+          memory: 200M
+          cpus: '0.3'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: eunomia-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://monitoring.${DOMAIN}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - backend_net
+    depends_on:
+      - prometheus
+      - loki
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.3'
+        reservations:
+          memory: 200M
+          cpus: '0.2'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  loki:
+    image: grafana/loki:latest
+    container_name: eunomia-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.3'
+        reservations:
+          memory: 200M
+          cpus: '0.2'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: eunomia-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./backend/logs:/var/log/app:ro
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - backend_net
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+          cpus: '0.2'
+        reservations:
+          memory: 100M
+          cpus: '0.1'
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-flower
+    restart: unless-stopped
+    command: celery -A app.core.celery_app flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+          cpus: '0.2'
+        reservations:
+          memory: 100M
+          cpus: '0.1'
+
+# ==============================================================================
+# VOLUMES
+# ==============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  ollama_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  nginx_cache:
+    driver: local
+  uploads_data:
+    driver: local
+  huggingface_cache:
+    driver: local
+
+# ==============================================================================
+# NETWORKS
+# ==============================================================================
+
+networks:
+  frontend_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  backend_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+```
+
+---
+
+## 📋 KEY EXPLANATIONS
+
+### **1. Architecture complète (15 services)**
+```
+LAYER 1: nginx (200 MB)
+LAYER 2: backend-api-1 + backend-api-2 (2 GB total)
+LAYER 3: Hugging Face models (loaded in API containers)
+LAYER 4: ollama (10 GB)
+LAYER 5: celery-worker-llm + celery-worker-embeddings + celery-beat (2.7 GB)
+LAYER 6: postgres + redis + qdrant (4.1 GB)
+LAYER 7: prometheus + grafana + loki + promtail + flower (1.35 GB)
+
+TOTAL: 22.85 GB / 24 GB
+BUFFER: 1.15 GB (5% margin)
