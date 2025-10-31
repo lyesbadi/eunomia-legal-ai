@@ -554,7 +554,7 @@ install_certbot() {
     # Instructions for obtaining certificate
     log INFO "-------------------------------------------------------"
     log INFO "To obtain SSL certificate after NGINX deployment:"
-    log INFO "sudo certbot --nginx -d yourdomain.com"
+    log INFO "sudo certbot --nginx -d lyesbadii.xyz"
     log INFO "-------------------------------------------------------"
 }
 
