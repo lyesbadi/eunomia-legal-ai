@@ -479,15 +479,25 @@ configure_firewall() {
 
 install_fail2ban() {
     log STEP "Step 8: Installing and configuring Fail2ban"
-    
-    # Install fail2ban
-    log INFO "Installing Fail2ban..."
-    dnf install -y epel-release &>> "$LOG_FILE"
+
+    # Install the EPEL repository for Oracle Linux 8
+    log INFO "Installing EPEL repository for Oracle Linux 8..."
+    dnf install -y oracle-epel-release-el8 &>> "$LOG_FILE" || {
+        log ERROR "Failed to install EPEL repository. Fail2ban cannot be installed."
+        exit 1
+    }
+
+    # Install fail2ban (now that EPEL is available)
+    log INFO "Installing Fail2ban from EPEL repository..."
     dnf install -y fail2ban fail2ban-systemd &>> "$LOG_FILE" || {
-    	log WARN "Fail2ban installation failed (non-critical)"
-}
+        log ERROR "Fail2ban installation failed. Check dnf logs."
+        exit 1
+    }
     
-    # Configure SSH jail
+    #  Create the fail2ban configuration directory if it doesn't exist (extra security)
+    mkdir -p /etc/fail2ban/jail.d
+
+    # Configure the "jail" SSH
     log INFO "Configuring SSH jail..."
     cat > /etc/fail2ban/jail.d/sshd.local <<'EOF'
 [sshd]
@@ -501,7 +511,7 @@ banaction = firewallcmd-ipset
 backend = systemd
 EOF
 
-    # Start and enable fail2ban
+    # start and enable fail2ban
     log INFO "Starting Fail2ban..."
     systemctl start fail2ban
     systemctl enable fail2ban &>> "$LOG_FILE"
@@ -511,7 +521,7 @@ EOF
     if systemctl is-active --quiet fail2ban; then
         log INFO "Fail2ban active and configured"
         
-        # Display SSH jail status
+        # show the status of the sshd jail
         fail2ban-client status sshd 2>/dev/null | tee -a "$LOG_FILE" || true
     else
         log ERROR "Fail2ban failed to start"
