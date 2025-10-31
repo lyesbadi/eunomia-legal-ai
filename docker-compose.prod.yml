@@ -351,7 +351,7 @@ services:
       QDRANT__CLUSTER__ENABLED: "false"
       QDRANT__PERFORMANCE__FORCE_AVX2: "false"
     volumes:
-      - qdrant_data:/qdrant/storage
+      - qdrant_data:/qdrant/storage:Z
     networks:
       - backend_net
     deploy:
@@ -363,19 +363,11 @@ services:
           memory: 1.5G
           cpus: "0.5"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:6333/healthz",
-        ]
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   # ============================================================================
   # LAYER 7: OBSERVABILITY
