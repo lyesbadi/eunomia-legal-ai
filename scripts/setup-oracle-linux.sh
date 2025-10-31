@@ -487,14 +487,25 @@ install_fail2ban() {
         exit 1
     }
 
-    # Install fail2ban (now that EPEL is available)
+    # Activate the 'CodeReady Builder' repository for dependencies
+    log INFO "Enabling CodeReady Builder repository for dependencies..."
+    dnf config-manager --set-enabled ol8_codeready_builder &>> "$LOG_FILE" || {
+        log WARN "Could not enable ol8_codeready_builder repository. This might cause dependency issues."
+    }
+
+    # CLean the cache and rebuild it to include the new repository
+    log INFO "Cleaning and rebuilding dnf cache..."
+    dnf clean all &>> "$LOG_FILE"
+    dnf makecache &>> "$LOG_FILE"
+
+    # Install fail2ban (now that the repos and cache are ready)
     log INFO "Installing Fail2ban from EPEL repository..."
     dnf install -y fail2ban fail2ban-systemd &>> "$LOG_FILE" || {
-        log ERROR "Fail2ban installation failed. Check dnf logs."
+        log ERROR "Fail2ban installation failed. Check dnf logs or run 'sudo dnf install -y fail2ban' manually for details."
         exit 1
     }
-    
-    #  Create the fail2ban configuration directory if it doesn't exist (extra security)
+
+    # Create the jail configuration folder if it doesn't exist
     mkdir -p /etc/fail2ban/jail.d
 
     # Configure the "jail" SSH
@@ -515,13 +526,13 @@ EOF
     log INFO "Starting Fail2ban..."
     systemctl start fail2ban
     systemctl enable fail2ban &>> "$LOG_FILE"
-    
+
     # Verification
     sleep 2
     if systemctl is-active --quiet fail2ban; then
         log INFO "Fail2ban active and configured"
-        
-        # show the status of the sshd jail
+
+        # show status of SSH jail
         fail2ban-client status sshd 2>/dev/null | tee -a "$LOG_FILE" || true
     else
         log ERROR "Fail2ban failed to start"
