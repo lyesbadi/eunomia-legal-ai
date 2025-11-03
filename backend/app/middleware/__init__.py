@@ -59,7 +59,7 @@ def setup_middleware(app) -> None:
         app.add_middleware(
             RateLimitMiddleware,
             requests=settings.RATE_LIMIT_PER_MINUTE,
-            window=settings.RATE_LIMIT_WINDOW
+            window=settings.RATE_LIMIT_PER_MINUTE
         )
 
 
