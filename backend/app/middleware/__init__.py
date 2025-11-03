@@ -55,7 +55,7 @@ def setup_middleware(app) -> None:
     app.add_middleware(LoggingMiddleware)
     
     # Rate limiting (optional, can be disabled in dev)
-    if settings.ENABLE_RATE_LIMITING:
+    if settings.RATE_LIMIT_ENABLED:
         app.add_middleware(
             RateLimitMiddleware,
             requests=settings.RATE_LIMIT_REQUESTS,
