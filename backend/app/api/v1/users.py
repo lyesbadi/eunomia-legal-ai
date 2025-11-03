@@ -19,7 +19,7 @@ from app.api.deps import (
     AuditLogger,
     PaginationParams
 )
-from app.core.security import verify_password, get_password_hash
+from app.core.security import verify_password, hash_password
 from app.models.user import User, UserRole
 from app.models.document import Document
 from app.models.analysis import Analysis
@@ -275,7 +275,7 @@ async def change_password(
         )
     
     # Update password
-    current_user.hashed_password = get_password_hash(data.new_password)
+    current_user.hashed_password = hash_password(data.new_password)
     current_user.password_changed_at = datetime.utcnow()
     
     try:

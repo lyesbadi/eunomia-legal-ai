@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.user import User, UserRole
 from app.models.document import Document
 from app.models.analysis import Analysis
-from app.core.security import get_password_hash, verify_password
+from app.core.security import hash_password, verify_password
 import logging
 
 
@@ -159,7 +159,7 @@ class UserService:
             raise ValueError(f"Email {email} already registered")
         
         # Hash password
-        hashed_password = get_password_hash(password)
+        hashed_password = hash_password(password)
         
         # Create user
         user = User(
@@ -235,7 +235,7 @@ class UserService:
         Returns:
             Updated user object
         """
-        user.hashed_password = get_password_hash(new_password)
+        user.hashed_password = hash_password(new_password)
         user.password_changed_at = datetime.utcnow()
         
         await db.commit()

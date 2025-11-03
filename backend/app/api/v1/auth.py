@@ -18,11 +18,11 @@ from app.api.deps import (
 )
 from app.core.security import (
     verify_password,
-    hash_password,            # <-- CORRIGÉ
+    hash_password,
     create_access_token,
     create_refresh_token,
-    decode_token,             # <-- CORRIGÉ
-    generate_secure_token,    # <-- CORRIGÉ
+    decode_token,
+    generate_secure_token,
     generate_api_key
 )
 from app.core.config import settings
