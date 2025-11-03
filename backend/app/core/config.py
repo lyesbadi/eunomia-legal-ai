@@ -6,6 +6,7 @@ from typing import Optional, List, Any
 from pydantic import Field, validator, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import secrets
+from pathlib import Path
 from functools import lru_cache
 
 
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
     # URLs (for CORS, emails, etc.)
     FRONTEND_URL: str = Field(default="http://localhost:3000", description="Main URL for the frontend")
     BACKEND_URL: str = Field(default="http://localhost:8000", description="Main URL for the backend")
-    
+
     # API Configuration
     API_V1_PREFIX: str = "/api/v1"
     API_DOCS_URL: Optional[str] = "/api/docs"
@@ -221,7 +222,7 @@ class Settings(BaseSettings):
     # =========================================================================
     # FILE STORAGE SETTINGS
     # =========================================================================
-    UPLOAD_DIR: str = Field(default="/app/uploads", description="Directory for uploaded files")
+    UPLOAD_DIR: Path = Field(default="/app/uploads", description="Directory for uploaded files")
     MAX_UPLOAD_SIZE_MB: int = Field(default=50, description="Max file upload size (MB)")
     ALLOWED_EXTENSIONS: List[str] = Field(
         default=[".pdf", ".docx", ".txt", ".md"],
