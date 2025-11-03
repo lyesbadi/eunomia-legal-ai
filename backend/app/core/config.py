@@ -210,7 +210,7 @@ class Settings(BaseSettings):
     # Model Names
     HF_MODEL_LEGAL_BERT: str = "nlpaueb/legal-bert-base-uncased"
     HF_MODEL_CAMEMBERT_NER: str = "Jean-Baptiste/camembert-ner"
-    HF_MODEL_UNFAIR_TOS: str = "dennlinger/bert-base-uncased-unfair-tos"
+    HF_MODEL_UNFAIR_TOS: str = "CodeHima/TOSBertV2"
     HF_MODEL_SUMMARIZATION: str = "facebook/bart-large-cnn"
     HF_MODEL_EMBEDDINGS: str = "sentence-transformers/all-MiniLM-L6-v2"
     HF_MODEL_QA: str = "deepset/roberta-base-squad2"

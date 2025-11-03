@@ -84,7 +84,7 @@ aiofiles==24.1.0
 
 # Data Processing
 pandas==2.2.3
-numpy==2.0.2
+numpy==1.26.0
 
 # NLP - Spacy with French model
 spacy==3.8.2
