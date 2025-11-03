@@ -18,11 +18,11 @@ from app.api.deps import (
 )
 from app.core.security import (
     verify_password,
-    get_password_hash,
+    hash_password,            # <-- CORRIGÉ
     create_access_token,
     create_refresh_token,
-    decode_refresh_token,
-    generate_verification_token,
+    decode_token,             # <-- CORRIGÉ
+    generate_secure_token,    # <-- CORRIGÉ
     generate_api_key
 )
 from app.core.config import settings
@@ -160,10 +160,10 @@ async def register(
     # Create new user
     try:
         # Hash password
-        hashed_password = get_password_hash(data.password)
+        hashed_password = hash_password(data.password)
         
         # Generate verification token
-        verification_token = generate_verification_token()
+        verification_token = generate_secure_token()
         
         # Create user object
         new_user = User(
@@ -362,14 +362,20 @@ async def refresh_token(
     Returns new access token.
     """
     # Decode refresh token
-    token_data = decode_refresh_token(data.refresh_token)
-    
-    if token_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
+    try:
+   	 token_data = decode_token(data.refresh_token)
+   	 if token_data is None or token_data.get("type") != "refresh":
+       	     raise HTTPException(
+            	status_code=status.HTTP_401_UNAUTHORIZED,
+           	detail="Invalid refresh token",
+            	headers={"WWW-Authenticate": "Bearer"},
+             )
+     except Exception:
+     	raise HTTPException(
+		status_code=status.HTTP_401_UNAUTHORIZED,
+        	detail="Invalid refresh token",
+        	headers={"WWW-Authenticate": "Bearer"},
+    	)
     
     user_id = token_data.get("user_id")
     
@@ -532,7 +538,7 @@ async def request_password_reset(
     
     if user:
         # Generate reset token
-        reset_token = generate_verification_token()
+        reset_token = generate_secure_token()
         
         # Store token in user (or separate password_reset table)
         user.verification_token = reset_token  # Reuse verification_token field
@@ -606,7 +612,7 @@ async def confirm_password_reset(
         )
     
     # Hash new password
-    user.hashed_password = get_password_hash(data.new_password)
+    user.hashed_password = hash_password(data.new_password)
     user.password_changed_at = datetime.utcnow()
     user.verification_token = None  # Clear token
     await db.commit()
@@ -656,7 +662,8 @@ async def create_api_key(
         )
     
     # Generate API key
-    api_key, api_key_hash = generate_api_key(current_user.id)
+    api_key = generate_api_key(prefix=f"user_{current_user.id}")
+    api_key_hash = hash_password(api_key)
     
     # Store hashed version
     current_user.api_key_hash = api_key_hash

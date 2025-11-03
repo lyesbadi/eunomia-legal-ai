@@ -11,8 +11,8 @@ from sqlalchemy import select
 from redis.asyncio import Redis
 import logging
 
-from app.core.database import get_async_session
-from app.core.security import decode_access_token
+from app.core.database import get_db
+from app.core.security import decode_token
 from app.core.config import settings
 from app.models.user import User, UserRole
 from app.models.audit_log import AuditLog, ActionType, ResourceType
@@ -38,34 +38,6 @@ security = HTTPBearer(
 # ============================================================================
 # DATABASE DEPENDENCY
 # ============================================================================
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency to get async database session.
-    
-    Yields:
-        AsyncSession: SQLAlchemy async session
-        
-    Example:
-```python
-        @router.get("/users")
-        async def get_users(db: AsyncSession = Depends(get_db)):
-            result = await db.execute(select(User))
-            return result.scalars().all()
-```
-    
-    Note:
-        Session is automatically committed and closed after request.
-    """
-    async for session in get_async_session():
-        try:
-            yield session
-        except Exception as e:
-            logger.error(f"Database session error: {e}")
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
-
 
 # ============================================================================
 # REDIS DEPENDENCY
@@ -170,7 +142,7 @@ async def get_current_user(
     
     try:
         # Decode JWT token
-        token_data = decode_access_token(token)
+        token_data = decode_token(token)
         if token_data is None:
             raise credentials_exception
         

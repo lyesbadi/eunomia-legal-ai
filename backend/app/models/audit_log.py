@@ -194,7 +194,7 @@ class AuditLog(Base):
         nullable=True,
         doc="HTTP status code"
     )
-    
+    	
     error_message: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -204,7 +204,7 @@ class AuditLog(Base):
     # ========================================================================
     # ADDITIONAL CONTEXT
     # ========================================================================
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    details: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSON,
         nullable=True,
         doc="Additional context as JSON (changes, filters, etc.)"
@@ -462,9 +462,9 @@ class AuditLog(Base):
         self.risk_score = risk_score
         self.requires_review = True
         
-        if not self.metadata:
-            self.metadata = {}
-        self.metadata["suspicious_reason"] = reason
+        if not self.details:
+            self.details = {}
+        self.details["suspicious_reason"] = reason
     
     def mark_reviewed(self, reviewer_id: int) -> None:
         """
