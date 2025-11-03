@@ -363,19 +363,19 @@ async def refresh_token(
     """
     # Decode refresh token
     try:
-   	 token_data = decode_token(data.refresh_token)
-   	 if token_data is None or token_data.get("type") != "refresh":
-       	     raise HTTPException(
-            	status_code=status.HTTP_401_UNAUTHORIZED,
-           	detail="Invalid refresh token",
-            	headers={"WWW-Authenticate": "Bearer"},
-             )
-     except Exception:
-     	raise HTTPException(
-		status_code=status.HTTP_401_UNAUTHORIZED,
-        	detail="Invalid refresh token",
-        	headers={"WWW-Authenticate": "Bearer"},
-    	)
+            token_data = decode_token(data.refresh_token)
+            if token_data is None or token_data.get("type") != "refresh":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid refresh token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+    except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     
     user_id = token_data.get("user_id")
     
