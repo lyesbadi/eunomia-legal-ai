@@ -197,6 +197,15 @@ class DatabaseManager:
             await conn.run_sync(Base.metadata.drop_all)
         logger.warning("All database tables dropped")
 
+# ============================================================================
+# GLOBAL INSTANCES
+# ============================================================================
+# Create global engine and session_factory instances
+# These are imported by other parts of the app (like main.py and alembic)
+engine: AsyncEngine = DatabaseManager.get_engine()
+async_session_maker: async_sessionmaker[AsyncSession] = DatabaseManager.get_session_factory()
+
+
 
 # ============================================================================
 # SESSION MANAGEMENT
@@ -219,8 +228,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         - Automatic rollback on exceptions
         - Connection returned to pool
     """
-    session_factory = DatabaseManager.get_session_factory()
-    async with session_factory() as session:
+    async with async_session_maker() as session:
         try:
             yield session
             await session.commit()
@@ -245,8 +253,7 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: Database session
     """
-    session_factory = DatabaseManager.get_session_factory()
-    async with session_factory() as session:
+    async with async_session_maker() as session:
         try:
             yield session
             await session.commit()
@@ -446,6 +453,8 @@ class Pagination:
 # Export commonly used items
 __all__ = [
     "Base",
+    "engine",
+    "async_session_maker",
     "get_db",
     "get_db_context",
     "DatabaseManager",
