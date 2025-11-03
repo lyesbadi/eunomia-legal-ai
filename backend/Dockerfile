@@ -70,8 +70,12 @@ COPY ./alembic /app/alembic
 COPY ./alembic.ini /app/alembic.ini
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/uploads && \
+RUN mkdir -p /app/logs /app/uploads /app/cache && \
     chown -R appuser:appuser /app
+
+ENV TRANSFORMERS_CACHE=/app/cache
+ENV HF_HOME=/app/cache
+ENV XDG_CACHE_HOME=/app/cache
 
 # Switch to non-root user
 USER appuser
