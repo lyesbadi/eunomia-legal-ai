@@ -182,8 +182,7 @@ class Settings(BaseSettings):
     # =========================================================================
     OLLAMA_HOST: str = Field(default="ollama", description="Ollama server hostname")
     OLLAMA_PORT: int = Field(default=11434, description="Ollama server port")
-    OLLAMA_MODEL: str = Field(default="mistral:7b-instruct-q8_0", description="Ollama model name")
-    
+    OLLAMA_MODEL: str = Field(default="eurollm-9b-q4:latest", description="Ollama model name")    
     OLLAMA_URL: Optional[str] = None
     
     @field_validator("OLLAMA_URL", mode="before")
