@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
 # FASTAPI APP INITIALIZATION
 # ============================================================================
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title=settings.APP_NAME,
     description="""
     # EUNOMIA Legal AI Platform
     
@@ -409,15 +409,15 @@ if settings.DEBUG:
         return {
             "environment": settings.ENVIRONMENT,
             "debug": settings.DEBUG,
-            "project_name": settings.PROJECT_NAME,
+            "project_name": settings.APP_NAME,
             "host": settings.HOST,
             "port": settings.PORT,
             "database_url": settings.DATABASE_URL.split("@")[-1],  # Hide credentials
             "frontend_url": settings.FRONTEND_URL,
             "backend_url": settings.BACKEND_URL,
             "upload_dir": str(settings.UPLOAD_DIR),
-            "rate_limiting_enabled": settings.ENABLE_RATE_LIMITING,
-            "jwt_algorithm": settings.JWT_ALGORITHM,
+            "rate_limiting_enabled": settings.RATE_LIMIT_ENABLED,
+            "jwt_algorithm": settings.ALGORITHM,
             "access_token_expire_minutes": settings.ACCESS_TOKEN_EXPIRE_MINUTES
         }
 

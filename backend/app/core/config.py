@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = Field(default="production", description="Environment: development, staging, production")
     DEBUG: bool = Field(default=False, description="Debug mode (disable in production)")
     INSTANCE_ID: str = Field(default="1", description="Instance ID for load balancing")
+    HOST: str = Field(default="0.0.0.0", description="Host to bind server")
+    PORT: int = Field(default=8000, description="Port to bind server")
+    DOMAIN: str = Field(default="localhost", description="Application domain name")
+    
+    # URLs (for CORS, emails, etc.)
+    FRONTEND_URL: str = Field(default="http://localhost:3000", description="Main URL for the frontend")
+    BACKEND_URL: str = Field(default="http://localhost:8000", description="Main URL for the backend")
     
     # API Configuration
     API_V1_PREFIX: str = "/api/v1"
