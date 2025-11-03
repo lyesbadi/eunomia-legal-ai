@@ -126,7 +126,8 @@ class Settings(BaseSettings):
     # =========================================================================
     CELERY_BROKER_URL: Optional[str] = None
     CELERY_RESULT_BACKEND: Optional[str] = None
-    
+    CELERY_TASK_TIME_LIMIT: int = Field(default=300, description="Task time limit (seconds)")
+
     @field_validator("CELERY_BROKER_URL", mode="before")
     @classmethod
     def set_celery_broker(cls, v: Optional[str], info) -> str:

@@ -3,6 +3,7 @@ version: "3.8"
 # ==============================================================================
 # EUNOMIA - Production Docker Compose Configuration
 # Oracle Cloud Free Tier (4 OCPU / 24 GB RAM)
+# EuroLLM-9B Q4 Integration (~6 GB RAM)
 # ==============================================================================
 
 services:
@@ -67,6 +68,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OLLAMA_URL=http://ollama:11434
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - ./backend/logs:/app/logs,Z
       - uploads_data:/app/uploads
@@ -111,6 +114,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OLLAMA_URL=http://ollama:11434
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - ./backend/logs:/app/logs,Z
       - uploads_data:/app/uploads
@@ -142,7 +147,7 @@ services:
       start_period: 60s
 
   # ============================================================================
-  # LAYER 4: LLM GENERATIVE
+  # LAYER 4: LLM GENERATIVE (EuroLLM-9B Q4)
   # ============================================================================
 
   ollama:
@@ -156,10 +161,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 10G
+          memory: 8G # EuroLLM-9B Q4 = ~6 GB + marge
           cpus: "2.0"
         reservations:
-          memory: 8G
+          memory: 6G
           cpus: "1.5"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
@@ -172,6 +177,44 @@ services:
   # LAYER 5: ASYNC WORKERS (CELERY)
   # ============================================================================
 
+  # Worker principal : analyses complètes (queue "default")
+  celery-worker-main:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eunomia-celery-main
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker -Q default --concurrency=1 --loglevel=info --max-tasks-per-child=10
+    env_file:
+      - ./backend/.env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://ollama:11434
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./backend/logs:/app/logs,Z
+      - uploads_data:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - redis
+      - postgres
+      - qdrant
+      - ollama
+    networks:
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          memory: 2G # HuggingFace models + overhead
+          cpus: "1.5"
+        reservations:
+          memory: 1.5G
+          cpus: "1.0"
+
+  # Worker LLM : tâches LLM uniquement (si besoin futur)
   celery-worker-llm:
     build:
       context: ./backend
@@ -186,6 +229,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OLLAMA_URL=http://ollama:11434
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - ./backend/logs:/app/logs,Z
       - uploads_data:/app/uploads
@@ -205,6 +250,7 @@ services:
           memory: 1G
           cpus: "0.5"
 
+  # Worker Embeddings : génération embeddings uniquement
   celery-worker-embeddings:
     build:
       context: ./backend
@@ -218,6 +264,8 @@ services:
       - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - ./backend/logs:/app/logs,Z
       - uploads_data:/app/uploads
@@ -237,6 +285,7 @@ services:
           memory: 500M
           cpus: "0.5"
 
+  # Celery Beat : scheduler tâches périodiques
   celery-beat:
     build:
       context: ./backend
@@ -249,6 +298,8 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://eunomia_user:${POSTGRES_PASSWORD}@postgres:5432/eunomia_db
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
       - postgres
@@ -508,6 +559,7 @@ services:
           memory: 100M
           cpus: "0.1"
 
+  # Flower : Monitoring Celery tasks
   flower:
     build:
       context: ./backend
@@ -519,6 +571,8 @@ services:
       - ./backend/.env.production
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     ports:
       - "5555:5555"
     depends_on:

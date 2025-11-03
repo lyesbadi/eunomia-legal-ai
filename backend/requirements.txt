@@ -14,8 +14,8 @@ python-multipart==0.0.6
 
 # Database - PostgreSQL Async
 sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
-alembic==1.14.0
+asyncpg==0.29.0
+alembic==1.13.1
 psycopg2-binary==2.9.10  # For Alembic sync operations
 
 # Database - Redis

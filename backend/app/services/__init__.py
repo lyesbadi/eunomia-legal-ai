@@ -21,6 +21,11 @@ from app.services.audit_service import (
 )
 
 
+from app.services.ai_service import ai_service, AIService
+from app.services.llm_service import llm_service, LLMService
+from app.services.vector_service import vector_service, VectorService
+
+
 # ============================================================================
 # EXPORTS
 # ============================================================================
@@ -43,4 +48,12 @@ __all__ = [
     # Audit convenience functions
     "log_action",
     "get_user_audit_logs",
+
+    # AI convience functions
+    "ai_service",
+    "AIService",
+    "llm_service",
+    "LLMService",
+    "vector_service",
+    "VectorService",
 ]
