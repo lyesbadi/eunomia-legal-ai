@@ -20,7 +20,9 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro,Z # Config Grafana
       - ./nginx/ssl:/etc/nginx/ssl:ro,Z
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - nginx_cache:/var/cache/nginx
       - ./frontend/dist:/usr/share/nginx/html:ro,Z
     depends_on:
