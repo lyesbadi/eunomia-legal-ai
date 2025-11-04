@@ -51,7 +51,7 @@ import logging
 # ============================================================================
 # ROUTER SETUP
 # ============================================================================
-router = APIRouter(prefix="/analyses", tags=["Analyses"])
+router = APIRouter(tags=["Analyses"])
 logger = logging.getLogger(__name__)
 
 

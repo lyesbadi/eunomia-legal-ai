@@ -60,7 +60,7 @@ import logging
 # ============================================================================
 # ROUTER SETUP
 # ============================================================================
-router = APIRouter(prefix="/documents", tags=["Documents"])
+router = APIRouter(tags=["Documents"])
 logger = logging.getLogger(__name__)
 
 
