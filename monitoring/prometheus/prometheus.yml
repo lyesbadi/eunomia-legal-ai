@@ -55,6 +55,16 @@ scrape_configs:
     static_configs:
       - targets: ["nginx:80"]
 
+  #NEW: Scrape cAdvisor for containers metrics
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["eunomia-cadvisor:8080"]
+
+  # NEW: Scrape Node Exporter for node metrics
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["eunomia-node-exporter:9100"]
+
 # ==============================================================================
 # ALERTING RULES
 # ==============================================================================
