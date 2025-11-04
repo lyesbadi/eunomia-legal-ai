@@ -21,7 +21,7 @@
     {
       "type": "datasource",
       "id": "prometheus",
-      "name": "Prometheus",
+      "name": "eunomia-prometheus",
       "version": "1.0.0"
     },
     {
@@ -15703,7 +15703,7 @@
         "options": [],
         "query": {
           "query": "label_values(node_uname_info, job)",
-          "refId": "Prometheus-job-Variable-Query"
+          "refId": "eunomia-prometheus-job-Variable-Query"
         },
         "refresh": 1,
         "regex": "",
@@ -15723,7 +15723,7 @@
         "options": [],
         "query": {
           "query": "label_values(node_uname_info{job=\"$job\"}, nodename)",
-          "refId": "Prometheus-nodename-Variable-Query"
+          "refId": "eunomia-prometheus-nodename-Variable-Query"
         },
         "refresh": 1,
         "regex": "",
@@ -15743,7 +15743,7 @@
         "options": [],
         "query": {
           "query": "label_values(node_uname_info{job=\"$job\", nodename=\"$nodename\"}, instance)",
-          "refId": "Prometheus-node-Variable-Query"
+          "refId": "eunomia-prometheus-node-Variable-Query"
         },
         "refresh": 1,
         "regex": "",

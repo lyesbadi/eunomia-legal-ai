@@ -1,12 +1,12 @@
 {
   "__inputs": [
     {
-      "name": "DS_PROMETHEUS",
+      "name": "eunomia-prometheus",
       "label": "prometheus",
       "description": "prometheus with cAdvisor as a target",
       "type": "datasource",
       "pluginId": "prometheus",
-      "pluginName": "Prometheus"
+      "pluginName": "eunomia-prometheus"
     }
   ],
   "__requires": [
@@ -31,13 +31,13 @@
     {
       "type": "datasource",
       "id": "prometheus",
-      "name": "Prometheus",
+      "name": "eunomia-prometheus",
       "version": "1.0.0"
     }
   ],
   "id": null,
   "title": "Docker monitoring",
-  "description": "Docker monitoring with Prometheus and cAdvisor",
+  "description": "Docker monitoring with eunomia-prometheus and cAdvisor",
   "tags": [
     "docker"
   ],
@@ -61,7 +61,7 @@
             "rgba(237, 129, 40, 0.89)",
             "rgba(50, 172, 45, 0.97)"
           ],
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "editable": true,
           "error": false,
           "format": "none",
@@ -142,7 +142,7 @@
             "rgba(237, 129, 40, 0.89)",
             "rgba(50, 172, 45, 0.97)"
           ],
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "editable": true,
           "error": false,
           "format": "mbytes",
@@ -223,7 +223,7 @@
             "rgba(237, 129, 40, 0.89)",
             "rgba(50, 172, 45, 0.97)"
           ],
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "editable": true,
           "error": false,
           "format": "percent",
@@ -306,7 +306,7 @@
         {
           "aliasColors": {},
           "bars": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "decimals": 2,
           "editable": true,
           "error": false,
@@ -396,7 +396,7 @@
         {
           "aliasColors": {},
           "bars": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "decimals": 2,
           "editable": true,
           "error": false,
@@ -487,7 +487,7 @@
         {
           "aliasColors": {},
           "bars": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -565,7 +565,7 @@
         {
           "aliasColors": {},
           "bars": false,
-          "datasource": "${DS_PROMETHEUS}",
+          "datasource": "eunomia-prometheus",
           "editable": true,
           "error": false,
           "fill": 1,

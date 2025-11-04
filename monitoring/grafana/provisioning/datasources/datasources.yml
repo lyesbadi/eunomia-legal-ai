@@ -3,6 +3,7 @@ apiVersion: 1
 datasources:
   # === PROMETHEUS ===
   - name: Prometheus
+    uid: eunomia-prometheus
     type: prometheus
     access: proxy
     orgId: 1
@@ -14,6 +15,7 @@ datasources:
   # === LOKI ===
   - name: Loki
     type: loki
+    uid: eunomia-loki
     access: proxy
     orgId: 1
     url: http://eunomia-loki:3100

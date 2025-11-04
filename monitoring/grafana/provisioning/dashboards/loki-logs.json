@@ -1,63 +1,63 @@
-{
+{job=~".+"}
   "__inputs": [
-    {
-      "name": "DS_LOKI",
-      "label": "Loki",
+    {job=~".+"}
+      "name": "eunomia-loki",
+      "label": "eunomia-loki",
       "description": "",
       "type": "datasource",
       "pluginId": "loki",
-      "pluginName": "Loki"
+      "pluginName": "eunomia-loki"
     },
-    {
-      "name": "DS_PROMETHEUS",
-      "label": "Prometheus",
+    {job=~".+"}
+      "name": "eunomia-prometheus",
+      "label": "eunomia-prometheus",
       "description": "",
       "type": "datasource",
       "pluginId": "prometheus",
-      "pluginName": "Prometheus"
+      "pluginName": "eunomia-prometheus"
     }
   ],
   "__requires": [
-    {
+    {job=~".+"}
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
       "version": "8.1.6"
     },
-    {
+    {job=~".+"}
       "type": "panel",
       "id": "graph",
       "name": "Graph (old)",
       "version": ""
     },
-    {
+    {job=~".+"}
       "type": "panel",
       "id": "logs",
       "name": "Logs",
       "version": ""
     },
-    {
+    {job=~".+"}
       "type": "datasource",
       "id": "loki",
-      "name": "Loki",
+      "name": "eunomia-loki",
       "version": "1.0.0"
     },
-    {
+    {job=~".+"}
       "type": "datasource",
       "id": "prometheus",
-      "name": "Prometheus",
+      "name": "eunomia-prometheus",
       "version": "1.0.0"
     },
-    {
+    {job=~".+"}
       "type": "panel",
       "id": "text",
       "name": "Text",
       "version": ""
     }
   ],
-  "annotations": {
+  "annotations": {job=~".+"}
     "list": [
-      {
+      {job=~".+"}
         "$$hashKey": "object:75",
         "builtIn": 1,
         "datasource": "-- Grafana --",
@@ -65,7 +65,7 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
-        "target": {
+        "target": {job=~".+"}
           "limit": 100,
           "matchAny": false,
           "tags": [],
@@ -75,7 +75,7 @@
       }
     ]
   },
-  "description": "Loki logs panel with prometheus variables ",
+  "description": "eunomia-loki logs panel with prometheus variables ",
   "editable": true,
   "gnetId": 15324,
   "graphTooltip": 0,
@@ -83,21 +83,21 @@
   "iteration": 1638208747820,
   "links": [],
   "panels": [
-    {
-      "aliasColors": {},
+    {job=~".+"}
+      "aliasColors": {job=~".+"}},
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "${DS_LOKI}",
-      "fieldConfig": {
-        "defaults": {
+      "datasource": "eunomia-loki",
+      "fieldConfig": {job=~".+"}
+        "defaults": {job=~".+"}
           "links": []
         },
         "overrides": []
       },
       "fill": 1,
       "fillGradient": 0,
-      "gridPos": {
+      "gridPos": {job=~".+"}
         "h": 3,
         "w": 24,
         "x": 0,
@@ -105,7 +105,7 @@
       },
       "hiddenSeries": false,
       "id": 6,
-      "legend": {
+      "legend": {job=~".+"}
         "avg": false,
         "current": false,
         "max": false,
@@ -117,7 +117,7 @@
       "lines": false,
       "linewidth": 1,
       "nullPointMode": "null",
-      "options": {
+      "options": {job=~".+"}
         "alertThreshold": true
       },
       "percentage": false,
@@ -130,8 +130,8 @@
       "stack": false,
       "steppedLine": false,
       "targets": [
-        {
-          "expr": "sum(count_over_time({namespace=\"$namespace\", pod=~\"$pod\"} |~ \"$search\"[$__interval]))",
+        {job=~".+"}
+          "expr": "sum(count_over_time({job=~".+"}namespace=\"$namespace\", pod=~\"$pod\"} |~ \"$search\"[$__interval]))",
           "refId": "A"
         }
       ],
@@ -139,13 +139,13 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "tooltip": {
+      "tooltip": {job=~".+"}
         "shared": true,
         "sort": 0,
         "value_type": "individual"
       },
       "type": "graph",
-      "xaxis": {
+      "xaxis": {job=~".+"}
         "buckets": null,
         "mode": "time",
         "name": null,
@@ -153,7 +153,7 @@
         "values": []
       },
       "yaxes": [
-        {
+        {job=~".+"}
           "$$hashKey": "object:168",
           "format": "short",
           "label": null,
@@ -162,7 +162,7 @@
           "min": null,
           "show": false
         },
-        {
+        {job=~".+"}
           "$$hashKey": "object:169",
           "format": "short",
           "label": null,
@@ -172,14 +172,14 @@
           "show": false
         }
       ],
-      "yaxis": {
+      "yaxis": {job=~".+"}
         "align": false,
         "alignLevel": null
       }
     },
-    {
-      "datasource": "${DS_LOKI}",
-      "gridPos": {
+    {job=~".+"}
+      "datasource": "eunomia-loki",
+      "gridPos": {job=~".+"}
         "h": 25,
         "w": 24,
         "x": 0,
@@ -187,7 +187,7 @@
       },
       "id": 2,
       "maxDataPoints": "",
-      "options": {
+      "options": {job=~".+"}
         "dedupStrategy": "none",
         "enableLogDetails": true,
         "prettifyLogMessage": false,
@@ -198,8 +198,8 @@
         "wrapLogMessage": true
       },
       "targets": [
-        {
-          "expr": "{namespace=\"$namespace\", pod=~\"$pod\"} |~ \"$search\"",
+        {job=~".+"}
+          "expr": "{job=~".+"}namespace=\"$namespace\", pod=~\"$pod\"} |~ \"$search\"",
           "refId": "A"
         }
       ],
@@ -208,17 +208,17 @@
       "title": "Logs Panel",
       "type": "logs"
     },
-    {
+    {job=~".+"}
       "datasource": null,
-      "gridPos": {
+      "gridPos": {job=~".+"}
         "h": 3,
         "w": 24,
         "x": 0,
         "y": 28
       },
       "id": 4,
-      "options": {
-        "content": "<div style=\"text-align:center\"> For Grafana Loki blog example </div>\n\n\n",
+      "options": {job=~".+"}
+        "content": "<div style=\"text-align:center\"> For Grafana eunomia-loki blog example </div>\n\n\n",
         "mode": "html"
       },
       "pluginVersion": "8.1.6",
@@ -231,12 +231,12 @@
   "schemaVersion": 30,
   "style": "dark",
   "tags": [],
-  "templating": {
+  "templating": {job=~".+"}
     "list": [
-      {
+      {job=~".+"}
         "allValue": null,
-        "current": {},
-        "datasource": "${DS_PROMETHEUS}",
+        "current": {job=~".+"}},
+        "datasource": "eunomia-prometheus",
         "definition": "label_values(kube_pod_info, namespace)",
         "description": null,
         "error": null,
@@ -246,9 +246,9 @@
         "multi": false,
         "name": "namespace",
         "options": [],
-        "query": {
+        "query": {job=~".+"}
           "query": "label_values(kube_pod_info, namespace)",
-          "refId": "Prometheus-namespace-Variable-Query"
+          "refId": "eunomia-prometheus-namespace-Variable-Query"
         },
         "refresh": 1,
         "regex": "",
@@ -259,11 +259,11 @@
         "type": "query",
         "useTags": false
       },
-      {
+      {job=~".+"}
         "allValue": ".*",
-        "current": {},
-        "datasource": "${DS_PROMETHEUS}",
-        "definition": "label_values(container_network_receive_bytes_total{namespace=~\"$namespace\"},pod)",
+        "current": {job=~".+"}},
+        "datasource": "eunomia-prometheus",
+        "definition": "label_values(container_network_receive_bytes_total{job=~".+"}namespace=~\"$namespace\"},pod)",
         "description": null,
         "error": null,
         "hide": 0,
@@ -272,9 +272,9 @@
         "multi": true,
         "name": "pod",
         "options": [],
-        "query": {
-          "query": "label_values(container_network_receive_bytes_total{namespace=~\"$namespace\"},pod)",
-          "refId": "Prometheus-pod-Variable-Query"
+        "query": {job=~".+"}
+          "query": "label_values(container_network_receive_bytes_total{job=~".+"}namespace=~\"$namespace\"},pod)",
+          "refId": "eunomia-prometheus-pod-Variable-Query"
         },
         "refresh": 1,
         "regex": "",
@@ -285,8 +285,8 @@
         "type": "query",
         "useTags": false
       },
-      {
-        "current": {
+      {job=~".+"}
+        "current": {job=~".+"}
           "selected": false,
           "text": "level=warn",
           "value": "level=warn"
@@ -297,7 +297,7 @@
         "label": "Search",
         "name": "search",
         "options": [
-          {
+          {job=~".+"}
             "selected": true,
             "text": "level=warn",
             "value": "level=warn"
@@ -309,11 +309,11 @@
       }
     ]
   },
-  "time": {
+  "time": {job=~".+"}
     "from": "now-30m",
     "to": "now"
   },
-  "timepicker": {
+  "timepicker": {job=~".+"}
     "refresh_intervals": [
       "5s",
       "10s",
@@ -328,7 +328,7 @@
     ]
   },
   "timezone": "",
-  "title": "Loki Logs Dashboard",
+  "title": "eunomia-loki Logs Dashboard",
   "uid": "liz0yRCZz",
   "version": 5
 }
