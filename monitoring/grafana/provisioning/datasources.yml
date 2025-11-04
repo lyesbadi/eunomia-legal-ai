@@ -1,19 +1,22 @@
-# ==============================================================================
-# EUNOMIA - Grafana Datasources
-# ==============================================================================
-
 apiVersion: 1
 
 datasources:
+  # === PROMETHEUS ===
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    orgId: 1
+    url: http://eunomia-prometheus:9090
+    basicAuth: false
     isDefault: true
-    editable: false
+    editable: true
 
+  # === LOKI ===
   - name: Loki
     type: loki
     access: proxy
-    url: http://loki:3100
-    editable: false
+    orgId: 1
+    url: http://eunomia-loki:3100
+    basicAuth: false
+    isDefault: false
+    editable: true
