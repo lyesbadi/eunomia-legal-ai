@@ -154,6 +154,8 @@ services:
     image: ollama/ollama:latest
     container_name: eunomia-ollama
     restart: unless-stopped
+    ports:
+      - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     networks:
@@ -436,6 +438,8 @@ services:
     image: prom/prometheus:latest
     container_name: eunomia-prometheus
     restart: unless-stopped
+    ports:
+      - "9090:9090"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -475,6 +479,8 @@ services:
     image: grafana/grafana:latest
     container_name: eunomia-grafana
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -515,6 +521,8 @@ services:
     image: grafana/loki:latest
     container_name: eunomia-loki
     restart: unless-stopped
+    ports:
+      - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - loki_data:/loki
@@ -548,11 +556,13 @@ services:
     image: grafana/promtail:latest
     container_name: eunomia-promtail
     restart: unless-stopped
+    user: root
     command: -config.file=/etc/promtail/config.yml
     volumes:
       - ./backend/logs:/var/log/app:ro,Z
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro,Z
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro,Z
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     networks:
       - backend_net
     depends_on:
