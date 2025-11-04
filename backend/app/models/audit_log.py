@@ -1,7 +1,7 @@
-"""
-EUNOMIA Legal AI Platform - Audit Log Model
-SQLAlchemy model for GDPR compliance and security audit trail
-"""
+
+# EUNOMIA Legal AI Platform - Audit Log Model
+# SQLAlchemy model for GDPR compliance and security audit trail
+
 from typing import Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, Index, Enum as SQLEnum, JSON
@@ -68,9 +68,9 @@ class ActionType(str, enum.Enum):
 # RESOURCE TYPE ENUM
 # ============================================================================
 class ResourceType(str, enum.Enum):
-    """
-    Types of resources that can be audited.
-    """
+
+    # Types of resources that can be audited.
+
     USER = "user"
     DOCUMENT = "document"
     ANALYSIS = "analysis"
@@ -81,25 +81,24 @@ class ResourceType(str, enum.Enum):
 # AUDIT LOG MODEL
 # ============================================================================
 class AuditLog(Base):
-    """
-    Audit log model for GDPR compliance and security monitoring.
+    # Audit log model for GDPR compliance and security monitoring.
     
-    Features:
-    - Comprehensive action logging
-    - IP address tracking
-    - User agent tracking
-    - Request metadata
-    - GDPR-compliant retention
-    - Tamper-evident design (append-only)
+    # Features:
+    # - Comprehensive action logging
+    # - IP address tracking
+    # - User agent tracking
+    # - Request metadata
+    # - GDPR-compliant retention
+    # - Tamper-evident design (append-only)
     
-    GDPR Requirements:
-    - Article 30: Records of processing activities
-    - Article 32: Security of processing
-    - Article 33: Notification of data breach
+    # GDPR Requirements:
+    # - Article 30: Records of processing activities
+    # - Article 32: Security of processing
+    # - Article 33: Notification of data breach
     
-    Relationships:
-    - user: Many-to-one with User model (nullable for system actions)
-    """
+    # Relationships:
+    # - user: Many-to-one with User model (nullable for system actions)
+
     
     # Primary Key
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -336,12 +335,12 @@ class AuditLog(Base):
     # METHODS
     # ========================================================================
     def __repr__(self) -> str:
-        """String representation"""
+        # String representation
         return f"<AuditLog(id={self.id}, action='{self.action.value}', user_id={self.user_id})>"
     
     @property
     def is_authentication_event(self) -> bool:
-        """Check if log is an authentication event"""
+        # Check if log is an authentication event
         return self.action in (
             ActionType.LOGIN_SUCCESS,
             ActionType.LOGIN_FAILED,
@@ -350,7 +349,7 @@ class AuditLog(Base):
     
     @property
     def is_data_access_event(self) -> bool:
-        """Check if log is a data access event (GDPR relevant)"""
+        # Check if log is a data access event (GDPR relevant)
         return self.action in (
             ActionType.DOCUMENT_VIEW,
             ActionType.DOCUMENT_DOWNLOAD,
@@ -360,7 +359,7 @@ class AuditLog(Base):
     
     @property
     def is_deletion_event(self) -> bool:
-        """Check if log is a deletion event"""
+        # Check if log is a deletion event
         return self.action in (
             ActionType.USER_DELETE,
             ActionType.DOCUMENT_DELETE,
@@ -369,14 +368,14 @@ class AuditLog(Base):
     
     @property
     def is_high_risk(self) -> bool:
-        """Check if log is high risk"""
+        # Check if log is high risk
         if self.risk_score is None:
             return False
         return self.risk_score >= 70
     
     @property
     def is_expired(self) -> bool:
-        """Check if log retention period has expired"""
+        # Check if log retention period has expired
         if not self.retention_until:
             return False
         return datetime.utcnow() >= self.retention_until
@@ -395,24 +394,24 @@ class AuditLog(Base):
         metadata: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> "AuditLog":
-        """
-        Factory method to create audit log entries.
+
+    #    Factory method to create audit log entries.
         
-        Args:
-            action: Type of action
-            description: Human-readable description
-            user_id: User who performed action
-            resource_type: Type of resource affected
-            resource_id: ID of resource affected
-            ip_address: IP address
-            user_agent: User agent string
-            success: Whether action succeeded
-            metadata: Additional context
-            **kwargs: Additional fields
+    #    Args:
+    #        action: Type of action
+    #        description: Human-readable description
+    #        user_id: User who performed action
+    #       resource_type: Type of resource affected
+    #        resource_id: ID of resource affected
+    #        ip_address: IP address
+    #        user_agent: User agent string
+    #        success: Whether action succeeded
+    #        metadata: Additional context
+    #        **kwargs: Additional fields
         
-        Returns:
-            AuditLog: New audit log instance
-        """
+    #    Returns:
+    #        AuditLog: New audit log instance
+
         # Determine GDPR relevance
         is_gdpr_relevant = action in (
             ActionType.USER_REGISTER,
@@ -451,13 +450,13 @@ class AuditLog(Base):
         )
     
     def mark_suspicious(self, risk_score: int, reason: str) -> None:
-        """
-        Mark log as suspicious.
+
+        #Mark log as suspicious.
         
-        Args:
-            risk_score: Risk score (0-100)
-            reason: Reason for flagging
-        """
+        # Args:
+        #    risk_score: Risk score (0-100)
+        #    reason: Reason for flagging
+
         self.is_suspicious = True
         self.risk_score = risk_score
         self.requires_review = True
@@ -467,12 +466,12 @@ class AuditLog(Base):
         self.details["suspicious_reason"] = reason
     
     def mark_reviewed(self, reviewer_id: int) -> None:
-        """
-        Mark log as reviewed by admin.
+
+        # Mark log as reviewed by admin.
         
-        Args:
-            reviewer_id: Admin user ID
-        """
+        # Args:
+        #     reviewer_id: Admin user ID
+
         self.requires_review = False
         self.reviewed_at = datetime.utcnow()
         self.reviewed_by = reviewer_id

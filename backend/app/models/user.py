@@ -1,7 +1,7 @@
-"""
-EUNOMIA Legal AI Platform - User Model
-SQLAlchemy model for user authentication and management
-"""
+
+# EUNOMIA Legal AI Platform - User Model
+# SQLAlchemy model for user authentication and management
+
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy import String, Boolean, DateTime, Enum as SQLEnum, Text, Index
@@ -16,15 +16,15 @@ from app.core.database import Base
 # USER ROLE ENUM
 # ============================================================================
 class UserRole(str, enum.Enum):
-    """
-    User role enumeration.
+
+    # User role enumeration.
     
-    Roles hierarchy:
-    - ADMIN: Full system access, user management
-    - MANAGER: Can manage team documents and analyses
-    - USER: Standard user, can upload and analyze documents
-    - VIEWER: Read-only access to shared documents
-    """
+    # Roles hierarchy:
+    # - ADMIN: Full system access, user management
+    # - MANAGER: Can manage team documents and analyses
+    # - USER: Standard user, can upload and analyze documents
+    # - VIEWER: Read-only access to shared documents
+
     ADMIN = "admin"
     MANAGER = "manager"
     USER = "user"
@@ -35,22 +35,22 @@ class UserRole(str, enum.Enum):
 # USER MODEL
 # ============================================================================
 class User(Base):
-    """
-    User model for authentication and authorization.
+
+    # User model for authentication and authorization.
     
-    Features:
-    - Email-based authentication
-    - Password hashing (bcrypt)
-    - Role-based access control (RBAC)
-    - Account activation and verification
-    - GDPR compliance (data retention, consent tracking)
-    - Audit trail (login tracking, last activity)
-    - Soft delete capability
+    # Features:
+    # - Email-based authentication
+    # - Password hashing (bcrypt)
+    # - Role-based access control (RBAC)
+    # - Account activation and verification
+    # - GDPR compliance (data retention, consent tracking)
+    # - Audit trail (login tracking, last activity)
+    # - Soft delete capability
     
-    Relationships:
-    - documents: One-to-many with Document model
-    - audit_logs: One-to-many with AuditLog model
-    """
+    # Relationships:
+    # - documents: One-to-many with Document model
+    # - audit_logs: One-to-many with AuditLog model
+
     
     # Primary Key
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -291,32 +291,32 @@ class User(Base):
     # METHODS
     # ========================================================================
     def __repr__(self) -> str:
-        """String representation"""
+        # String representation
         return f"<User(id={self.id}, email='{self.email}', role='{self.role.value}')>"
     
     @property
     def is_admin(self) -> bool:
-        """Check if user is admin"""
+        # Check if user is admin
         return self.role == UserRole.ADMIN
     
     @property
     def is_manager(self) -> bool:
-        """Check if user is manager or higher"""
+        # Check if user is manager or higher
         return self.role in (UserRole.ADMIN, UserRole.MANAGER)
     
     @property
     def can_upload_documents(self) -> bool:
-        """Check if user can upload documents"""
+        # Check if user can upload documents
         return self.role in (UserRole.ADMIN, UserRole.MANAGER, UserRole.USER)
     
     @property
     def is_locked(self) -> bool:
-        """Check if account is locked due to failed login attempts"""
+        # Check if account is locked due to failed login attempts
         return self.failed_login_attempts >= 5
     
     @property
     def needs_password_change(self) -> bool:
-        """Check if password should be changed (older than 90 days)"""
+        # Check if password should be changed (older than 90 days)
         if not self.password_changed_at:
             return False
         
@@ -326,39 +326,39 @@ class User(Base):
     
     @property
     def is_gdpr_compliant(self) -> bool:
-        """Check if user has given GDPR consent"""
+        # Check if user has given GDPR consent
         return self.gdpr_consent_given_at is not None
     
     def update_last_login(self) -> None:
-        """Update login tracking fields"""
+        # Update login tracking fields
         self.last_login_at = datetime.utcnow()
         self.last_activity_at = datetime.utcnow()
         self.login_count += 1
         self.failed_login_attempts = 0  # Reset on successful login
     
     def increment_failed_login(self) -> None:
-        """Increment failed login counter"""
+        # Increment failed login counter
         self.failed_login_attempts += 1
     
     def reset_failed_login(self) -> None:
-        """Reset failed login counter"""
+        # Reset failed login counter
         self.failed_login_attempts = 0
     
     def update_activity(self) -> None:
-        """Update last activity timestamp"""
+        # Update last activity timestamp
         self.last_activity_at = datetime.utcnow()
     
     def soft_delete(self) -> None:
-        """Soft delete user (GDPR right to be forgotten)"""
+        # Soft delete user (GDPR right to be forgotten)
         self.deleted_at = datetime.utcnow()
         self.is_active = False
     
     def anonymize(self) -> None:
-        """
-        Anonymize user data for GDPR compliance.
+
+        # Anonymize user data for GDPR compliance.
         
-        Keeps minimal data for audit trail but removes PII.
-        """
+        # Keeps minimal data for audit trail but removes PII.
+
         from app.core.security import anonymize_email
         
         # Anonymize email

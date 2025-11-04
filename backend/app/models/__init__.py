@@ -1,7 +1,7 @@
-"""
-EUNOMIA Legal AI Platform - Models Package
-Export all SQLAlchemy models for easy imports
-"""
+
+# EUNOMIA Legal AI Platform - Models Package
+# Export all SQLAlchemy models for easy imports
+
 from app.core.database import Base
 
 # Import all models (order matters for relationships)

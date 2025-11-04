@@ -1,7 +1,7 @@
-"""
-EUNOMIA Legal AI Platform - Document Model
-SQLAlchemy model for uploaded legal documents
-"""
+
+# EUNOMIA Legal AI Platform - Document Model
+# SQLAlchemy model for uploaded legal documents
+
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy import String, Integer, Boolean, DateTime, Enum as SQLEnum, Text, ForeignKey, Index, Float
@@ -47,21 +47,21 @@ class DocumentStatus(str, enum.Enum):
 # DOCUMENT MODEL
 # ============================================================================
 class Document(Base):
-    """
-    Document model for uploaded legal documents.
+
+    # Document model for uploaded legal documents.
     
-    Features:
-    - File metadata (name, size, type, hash)
-    - Processing status tracking
-    - Document classification
-    - Ownership and access control
-    - GDPR compliance (retention, encryption)
-    - Soft delete capability
+    # Features:
+    # - File metadata (name, size, type, hash)
+    # - Processing status tracking
+    # - Document classification
+    # - Ownership and access control
+    # - GDPR compliance (retention, encryption)
+    # - Soft delete capability
     
-    Relationships:
-    - owner: Many-to-one with User model
-    - analysis: One-to-one with Analysis model
-    """
+    # Relationships:
+    # - owner: Many-to-one with User model
+    # - analysis: One-to-one with Analysis model
+
     
     # Primary Key
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -369,55 +369,55 @@ class Document(Base):
     # METHODS
     # ========================================================================
     def __repr__(self) -> str:
-        """String representation"""
+        # String representation
         return f"<Document(id={self.id}, filename='{self.filename}', status='{self.status.value}')>"
     
     @property
     def is_processing(self) -> bool:
-        """Check if document is currently being processed"""
+        # Check if document is currently being processed
         return self.status == DocumentStatus.PROCESSING
     
     @property
     def is_completed(self) -> bool:
-        """Check if processing is completed"""
+        # Check if processing is completed
         return self.status == DocumentStatus.COMPLETED
     
     @property
     def is_failed(self) -> bool:
-        """Check if processing failed"""
+        # Check if processing failed
         return self.status == DocumentStatus.FAILED
     
     @property
     def can_retry(self) -> bool:
-        """Check if processing can be retried"""
+        # Check if processing can be retried
         return self.is_failed and self.retry_count < 3
     
     @property
     def file_size_mb(self) -> float:
-        """Get file size in megabytes"""
+        # Get file size in megabytes
         return round(self.file_size / (1024 * 1024), 2)
     
     @property
     def is_expired(self) -> bool:
-        """Check if document retention period has expired"""
+        # Check if document retention period has expired
         if not self.retention_until:
             return False
         return datetime.utcnow() >= self.retention_until
     
     @property
     def share_is_expired(self) -> bool:
-        """Check if share link has expired"""
+        # Check if share link has expired
         if not self.share_expires_at:
             return False
         return datetime.utcnow() >= self.share_expires_at
     
     def start_processing(self) -> None:
-        """Mark document as processing"""
+        # Mark document as processing
         self.status = DocumentStatus.PROCESSING
         self.processing_started_at = datetime.utcnow()
     
     def complete_processing(self) -> None:
-        """Mark document processing as completed"""
+        # Mark document processing as completed
         self.status = DocumentStatus.COMPLETED
         self.processing_completed_at = datetime.utcnow()
         
@@ -426,24 +426,24 @@ class Document(Base):
             self.processing_duration_seconds = duration.total_seconds()
     
     def fail_processing(self, error_message: str) -> None:
-        """Mark document processing as failed"""
+        # Mark document processing as failed
         self.status = DocumentStatus.FAILED
         self.error_message = error_message
         self.processing_completed_at = datetime.utcnow()
         self.retry_count += 1
     
     def increment_access(self) -> None:
-        """Increment access counter"""
+        # Increment access counter
         self.access_count += 1
         self.last_accessed_at = datetime.utcnow()
     
     def soft_delete(self) -> None:
-        """Soft delete document"""
+        # Soft delete document
         self.status = DocumentStatus.DELETED
         self.deleted_at = datetime.utcnow()
     
     def anonymize(self) -> None:
-        """Anonymize document metadata (GDPR)"""
+        # Anonymize document metadata (GDPR)
         self.title = "Anonymized Document"
         self.description = None
         self.anonymized = True

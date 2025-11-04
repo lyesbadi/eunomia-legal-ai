@@ -1,7 +1,7 @@
-"""
-EUNOMIA Legal AI Platform - Analysis Model
-SQLAlchemy model for AI analysis results
-"""
+
+# EUNOMIA Legal AI Platform - Analysis Model
+# SQLAlchemy model for AI analysis results
+
 from typing import Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy import String, Integer, Boolean, DateTime, Text, ForeignKey, Index, Float, JSON
@@ -15,26 +15,25 @@ from app.core.database import Base
 # ANALYSIS MODEL
 # ============================================================================
 class Analysis(Base):
-    """
-    Analysis model for AI-generated document analysis results.
+
+    # Analysis model for AI-generated document analysis results.
     
-    Stores results from:
-    - Document classification (Legal-BERT)
-    - Named Entity Recognition (CamemBERT-NER)
-    - Unfair clause detection (Unfair-ToS)
-    - Document summarization (BART)
-    - Question-Answering capabilities
-    - LLM-generated recommendations (Ollama Mistral)
+    # Stores results from:
+    # - Document classification (Legal-BERT)
+    # - Named Entity Recognition (CamemBERT-NER)
+    # - Unfair clause detection (Unfair-ToS)
+    # - Document summarization (BART)
+    # - Question-Answering capabilities
+    # - LLM-generated recommendations (Ollama Mistral)
     
-    Features:
-    - Structured JSON storage for complex results
-    - Confidence scores for each analysis type
-    - Processing metadata
-    - Versioning for model updates
+    #Features:
+    # - Structured JSON storage for complex results
+    # - Confidence scores for each analysis type
+    # - Processing metadata
+    # - Versioning for model updates
     
-    Relationships:
-    - document: One-to-one with Document model
-    """
+    # Relationships:
+    # - document: One-to-one with Document model
     
     # Primary Key
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -359,41 +358,41 @@ class Analysis(Base):
     # METHODS
     # ========================================================================
     def __repr__(self) -> str:
-        """String representation"""
+        # String representation
         return f"<Analysis(id={self.id}, document_id={self.document_id}, risk_level='{self.risk_level}')>"
     
     @property
     def is_high_risk(self) -> bool:
-        """Check if document is high risk"""
+        # Check if document is high risk
         return self.risk_level in ("high", "critical")
     
     @property
     def is_low_confidence(self) -> bool:
-        """Check if analysis has low confidence"""
+        # Check if analysis has low confidence
         if self.overall_confidence is None:
             return False
         return self.overall_confidence < 0.7
     
     @property
     def has_entities(self) -> bool:
-        """Check if any entities were detected"""
+        # Check if any entities were detected
         return self.entities_detected is not None and self.entities_detected > 0
     
     @property
     def has_pii(self) -> bool:
-        """Check if PII (persons) was detected"""
+        # Check if PII (persons) was detected
         return self.persons_detected is not None and self.persons_detected > 0
     
     def get_entity_by_type(self, entity_type: str) -> list:
-        """
-        Get all entities of a specific type.
+
+    #    Get all entities of a specific type.
         
-        Args:
-            entity_type: Entity type (PERSON, ORG, LOC, etc.)
+    #    Args:
+    #       entity_type: Entity type (PERSON, ORG, LOC, etc.)
         
-        Returns:
-            list: List of entities matching the type
-        """
+    #    Returns:
+    #        list: List of entities matching the type
+
         if not self.entities:
             return []
         
@@ -403,15 +402,15 @@ class Analysis(Base):
         ]
     
     def get_unfair_clauses_by_severity(self, min_severity: str = "medium") -> list:
-        """
-        Get unfair clauses filtered by severity.
+
+    #    Get unfair clauses filtered by severity.
         
-        Args:
-            min_severity: Minimum severity (low, medium, high, critical)
+    #    Args:
+    #        min_severity: Minimum severity (low, medium, high, critical)
         
-        Returns:
-            list: Filtered unfair clauses
-        """
+    #   Returns:
+    #        list: Filtered unfair clauses
+
         if not self.unfair_clauses:
             return []
         
@@ -424,12 +423,12 @@ class Analysis(Base):
         ]
     
     def to_dict_summary(self) -> Dict[str, Any]:
-        """
-        Get summary dict for API responses.
+
+    #    Get summary dict for API responses.
         
-        Returns:
-            dict: Analysis summary
-        """
+    #    Returns:
+    #        dict: Analysis summary
+
         return {
             "id": self.id,
             "document_id": self.document_id,
