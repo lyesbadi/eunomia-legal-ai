@@ -193,7 +193,7 @@ class AuditLog(Base):
         nullable=True,
         doc="HTTP status code"
     )
-    	
+    
     error_message: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
