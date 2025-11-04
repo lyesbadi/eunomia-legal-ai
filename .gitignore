@@ -203,3 +203,10 @@ backups/
 monitoring/prometheus/data/
 monitoring/grafana/data/
 monitoring/loki/data/
+
+
+# Fichiers de modèles LLM (GGUF)
+*.gguf
+
+# Fichiers de configuration de modèles
+EuroLLM.Modelfile
