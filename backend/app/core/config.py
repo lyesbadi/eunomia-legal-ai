@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     HOST: str = Field(default="0.0.0.0", description="Host to bind server")
     PORT: int = Field(default=8000, description="Port to bind server")
     DOMAIN: str = Field(default="localhost", description="Application domain name")
+    TERMS_VERSION: str = Field(default="1.0", description="Version of Terms & Conditions")
+
     
     # URLs (for CORS, emails, etc.)
     FRONTEND_URL: str = Field(default="http://localhost:3000", description="Main URL for the frontend")
