@@ -494,7 +494,7 @@ class LLMRecommendation(BaseModel):
         description="Priority level (low, medium, high)"
     )
     model_used: str = Field(
-        default="mistral:7b-instruct-q8_0",
+        default="eurollm-9b:latest",
         description="LLM model identifier"
     )
     
@@ -519,7 +519,7 @@ class LLMRecommendation(BaseModel):
                     "Négocier les charges récupérables"
                 ],
                 "estimated_priority": "medium",
-                "model_used": "mistral:7b-instruct-q8_0"
+                "model_used": "eurollm-9b:latest"
             }
         }
     )

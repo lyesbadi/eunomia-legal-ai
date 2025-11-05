@@ -223,7 +223,7 @@ class Settings(BaseSettings):
     # =========================================================================
     # FILE STORAGE SETTINGS
     # =========================================================================
-    UPLOAD_DIR: Path = Field(default="/app/uploads", description="Directory for uploaded files")
+    UPLOAD_DIR: Path = Field(default=Path("/app/uploads"), description="Directory for uploaded files")
     MAX_UPLOAD_SIZE_MB: int = Field(default=50, description="Max file upload size (MB)")
     ALLOWED_EXTENSIONS: List[str] = Field(
         default=[".pdf", ".docx", ".txt", ".md"],
