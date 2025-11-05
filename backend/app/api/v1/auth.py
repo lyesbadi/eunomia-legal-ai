@@ -468,6 +468,14 @@ async def verify_email(
     user = result.scalar_one_or_none()
     
     if not user:
+
+        await audit.log(
+            user_id=None,
+            action=ActionType.PASSWORD_RESET_COMPLETE,
+            resource_type=ResourceType.USER,
+            success=False,
+            error_message="Invalid reset token"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token"
@@ -541,7 +549,8 @@ async def request_password_reset(
         reset_token = generate_secure_token()
         
         # Store token in user (or separate password_reset table)
-        user.verification_token = reset_token  # Reuse verification_token field
+        user.password_reset_token = reset_token
+        user.password_reset_expires_at = datetime.utcnow() + timedelta(hours=1) # Token expires in 1 hour
         await db.commit()
         
         # Send reset email in background
@@ -593,28 +602,26 @@ async def confirm_password_reset(
     """
     # Find user with reset token
     result = await db.execute(
-        select(User).where(User.verification_token == data.token)
+        select(User).where(User.password_reset_token == data.token)
     )
     user = result.scalar_one_or_none()
     
     if not user:
-        await audit.log(
-            user_id=None,
-            action=ActionType.PASSWORD_RESET_COMPLETE,
-            resource_type=ResourceType.USER,
-            success=False,
-            error_message="Invalid token"
-        )
-        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token"
+        )
+    if user.password_reset_expires_at and user.password_reset_expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired. Please request a new one."
         )
     
     # Hash new password
     user.hashed_password = hash_password(data.new_password)
     user.password_changed_at = datetime.utcnow()
-    user.verification_token = None  # Clear token
+    user.password_reset_token = None
+    user.password_reset_expires_at = None
     await db.commit()
     
     # Log password reset
@@ -730,3 +737,30 @@ async def revoke_api_key(
         message="API key revoked successfully",
         revoked_at=datetime.utcnow()
     )
+# ============================================================================
+# CURRENT USER PROFILE
+# ============================================================================
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Get current user profile",
+    description="Get authenticated user's profile information (alias for /users/me)"
+)
+async def get_current_user_profile(
+    current_user: User = Depends(get_current_active_user)
+) -> UserResponse:
+    """
+    Get current user profile.
+    
+    This is an alias for GET /api/v1/users/me for convenience.
+    Returns full user profile information for authenticated user.
+    
+    **Authentication required:** JWT Bearer token
+    
+    Returns:
+    - User ID, email, full name
+    - Role and verification status
+    - Language preferences
+    - Activity timestamps
+    """
+    return UserResponse.model_validate(current_user)

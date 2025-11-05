@@ -5,6 +5,7 @@ FastAPI routes for AI analysis results retrieval and export
 from typing import Optional, List
 from datetime import datetime
 from io import BytesIO
+from app.models.document import Document
 import json
 from fastapi import (
     APIRouter, 
@@ -58,16 +59,26 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-def build_analysis_response(analysis: Analysis) -> AnalysisResponse:
+async def build_analysis_response(
+    analysis: Analysis,
+    db: AsyncSession
+) -> AnalysisResponse:
     """
     Build complete analysis response from database model.
     
     Args:
         analysis: Analysis database model
+        db: Database session (to fetch related document)
         
     Returns:
         AnalysisResponse with all structured results
     """
+    # Fetch related document for original_length
+    doc_result = await db.execute(
+        select(Document).where(Document.id == analysis.document_id)
+    )
+    document = doc_result.scalar_one_or_none()
+    
     # Parse classification
     classification = None
     if analysis.classification_details:
@@ -83,16 +94,42 @@ def build_analysis_response(analysis: Analysis) -> AnalysisResponse:
     if analysis.unfair_clauses:
         clauses = ClauseDetectionResult(**analysis.unfair_clauses)
     
-    # Parse summary
+    # Parse summary with real original_length
     summary = None
     if analysis.summary_text:
+        # Get original text length from document
+        original_length = 0
+        if document:
+            # If document has extracted text content
+            if hasattr(document, 'content') and document.content:
+                original_length = len(document.content)
+            # Or estimate from file size (for binary files)
+            elif document.file_size:
+                # Rough estimate: 1 char ≈ 1 byte for text
+                original_length = document.file_size
+        
+        # Extract key points from summary (split by sentences)
+        key_points = []
+        if analysis.summary_text:
+            # Simple sentence splitting (can be improved with NLP)
+            sentences = [s.strip() for s in analysis.summary_text.split('.') if s.strip()]
+            # Take first 3 sentences as key points
+            key_points = sentences[:3]
+        
+        # Calculate compression ratio
+        summary_length = len(analysis.summary_text)
+        compression_ratio = (
+            (1 - (summary_length / original_length)) * 100
+            if original_length > 0 else 0.0
+        )
+        
         summary = SummaryResult(
             summary_text=analysis.summary_text,
-            summary_length=len(analysis.summary_text),
-            original_length=0,  # TODO: Get from document
-            compression_ratio=analysis.summary_confidence or 0.0,
-            confidence=analysis.summary_confidence or 0.0,
-            key_points=[],
+            summary_length=summary_length,
+            original_length=original_length,  # ✅ Valeur réelle
+            compression_ratio=round(compression_ratio, 2),
+            confidence=analysis.summary_confidence or 0.85,
+            key_points=key_points,  # ✅ Points clés extraits
             model_used="facebook/bart-large-cnn"
         )
     
@@ -114,10 +151,10 @@ def build_analysis_response(analysis: Analysis) -> AnalysisResponse:
     if analysis.recommendations_text and analysis.llm_generated:
         recommendations = LLMRecommendation(
             recommendation_text=analysis.recommendations_text,
-            confidence=0.85,  # TODO: Store actual confidence
+            confidence=analysis.llm_confidence or 0.85,  # ✅ Utilise la vraie valeur si stockée
             action_items=[],
             estimated_priority="medium",
-            model_used="mistral:7b-instruct-q8_0"
+            model_used="eurollm-9b:latest"
         )
     
     # Parse Q&A
@@ -132,7 +169,7 @@ def build_analysis_response(analysis: Analysis) -> AnalysisResponse:
             embedding_generated=True,
             qdrant_point_id=analysis.qdrant_point_id,
             chunks_count=analysis.chunks_count or 0,
-            vector_dimension=384,  # Sentence transformers default
+            vector_dimension=384,
             model_used="sentence-transformers/all-MiniLM-L6-v2"
         )
     
@@ -149,32 +186,32 @@ def build_analysis_response(analysis: Analysis) -> AnalysisResponse:
     if ner:
         models_used.append("Jean-Baptiste/camembert-ner")
     if clauses:
-        models_used.append("coastalcph/unfair-tos")
+        models_used.append("claudiolemos/unfair-tos-bert")
     if summary:
         models_used.append("facebook/bart-large-cnn")
+    if recommendations:
+        models_used.append("eurollm-9b:latest")
     if embeddings:
         models_used.append("sentence-transformers/all-MiniLM-L6-v2")
-    if recommendations:
-        models_used.append("mistral:7b-instruct-q8_0")
     
+    # Build complete response
     return AnalysisResponse(
-        id=analysis.id,
+        analysis_id=analysis.id,
         document_id=analysis.document_id,
+        status=analysis.status,
         classification=classification,
         ner=ner,
-        clauses=clauses,
+        unfair_clauses=clauses,
         summary=summary,
-        risk=risk,
+        risk_assessment=risk,
         recommendations=recommendations,
-        qa=qa,
-        embeddings=embeddings,
-        detected_language=analysis.detected_language,
-        language_confidence=analysis.language_confidence,
-        readability_score=analysis.readability_score,
-        complexity_score=analysis.complexity_score,
+        qa_results=qa,
+        embeddings_info=embeddings,
+        processing_started_at=analysis.processing_started_at,
+        completed_at=analysis.completed_at,
         processing_time_seconds=processing_time,
         models_used=models_used,
-        completed_at=analysis.completed_at
+        error_message=analysis.error_message
     )
 
 
@@ -387,7 +424,7 @@ async def get_analysis(
     )
     
     # Build and return response
-    return build_analysis_response(analysis)
+    return await build_analysis_response(analysis, db)
 
 
 @router.get(
@@ -431,7 +468,7 @@ async def get_analysis_by_document(
     )
     
     # Build and return response
-    return build_analysis_response(analysis)
+    return await build_analysis_response(analysis, db)
 
 
 # ============================================================================
