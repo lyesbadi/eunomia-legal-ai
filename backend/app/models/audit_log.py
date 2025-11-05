@@ -1,4 +1,3 @@
-
 # EUNOMIA Legal AI Platform - Audit Log Model
 # SQLAlchemy model for GDPR compliance and security audit trail
 
@@ -137,9 +136,10 @@ class AuditLog(Base):
         doc="ID of the affected resource"
     )
     
-    description: Mapped[str] = mapped_column(
+    description: Mapped[Optional[str]] = mapped_column(
         Text,
-        nullable=False,
+        nullable=True,
+        default=None,
         doc="Human-readable description of the action"
     )
     
