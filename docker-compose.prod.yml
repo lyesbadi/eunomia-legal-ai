@@ -171,7 +171,7 @@ services:
           memory: 6G
           cpus: "1.5"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 3

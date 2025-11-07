@@ -1,0 +1,24 @@
+FACTURE N° 2025-001
+
+Société ABC
+123 rue de Paris
+75001 Paris
+SIRET : 123 456 789 00012
+TVA : FR12345678900
+
+Date : 05/11/2025
+Client : Société XYZ
+Adresse : 456 avenue des Champs, 75008 Paris
+
+DESCRIPTION                      QTÉ    PU HT      TOTAL HT
+------------------------------------------------
+Conseil juridique - Novembre     1      5 000 €    5 000 €
+Frais de déplacement            2        100 €      200 €
+
+Total HT :                                        5 200 €
+TVA 20% :                                         1 040 €
+Total TTC :                                       6 240 €
+
+Conditions de paiement : 30 jours
+Date limite de paiement : 05/12/2025
+RIB : FR76 1234 5678 9012 3456 7890 123
