@@ -251,6 +251,11 @@ async def login(
     """
     Authenticate user with email and password.
     
+    Lockout policy:
+    - Max 5 failed attempts
+    - 15 minutes lockout duration
+    - Auto-reset on successful login
+    
     - **email**: User email address
     - **password**: User password
     
@@ -259,26 +264,36 @@ async def login(
     # Get user by email
     user = await get_user_by_email(db, data.email)
     
-    # Verify user exists and password is correct
-    if not user or not verify_password(data.password, user.hashed_password):
+    if not user:
         await audit.log(
-            user_id=user.id if user else None,
+            user_id=None,
             action=ActionType.LOGIN_FAILED,
             resource_type=ResourceType.USER,
             success=False,
             error_message="Invalid credentials"
         )
         
-        # Increment failed login attempts
-        if user:
-            user.failed_login_attempts += 1
-            user.last_failed_login = datetime.utcnow()
-            await db.commit()
-        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    # ✅ ÉTAPE 1 : Vérifier si le compte est verrouillé
+    if user.locked_until and user.locked_until > datetime.utcnow():
+        remaining = (user.locked_until - datetime.utcnow()).seconds // 60
+        
+        await audit.log(
+            user_id=user.id,
+            action=ActionType.LOGIN_FAILED,
+            resource_type=ResourceType.USER,
+            success=False,
+            error_message=f"Account locked ({remaining} min remaining)"
+        )
+        
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Account locked due to too many failed attempts. Try again in {remaining} minutes."
         )
     
     # Check if account is active
@@ -296,6 +311,52 @@ async def login(
             detail="Account is inactive. Please contact support."
         )
     
+    # Verify password
+    if not verify_password(data.password, user.hashed_password):
+        # ✅ ÉTAPE 2 : Incrémenter le compteur d'échecs
+        user.failed_login_attempts += 1
+        user.last_failed_login = datetime.utcnow()
+        
+        # ✅ ÉTAPE 3 : Appliquer le verrouillage au seuil
+        if user.failed_login_attempts >= 5:
+            user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+            await db.commit()
+            
+            await audit.log(
+                user_id=user.id,
+                action=ActionType.LOGIN_FAILED,
+                resource_type=ResourceType.USER,
+                success=False,
+                error_message="Account locked after 5 failed attempts"
+            )
+            
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account locked due to too many failed attempts. Try again in 15 minutes."
+            )
+        
+        await db.commit()
+        
+        await audit.log(
+            user_id=user.id,
+            action=ActionType.LOGIN_FAILED,
+            resource_type=ResourceType.USER,
+            success=False,
+            error_message="Invalid credentials"
+        )
+        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    # ✅ ÉTAPE 4 : Réinitialiser les compteurs au succès
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login = datetime.utcnow()
+    user.last_activity = datetime.utcnow()
+    
     # Create tokens
     access_token = create_access_token(
         data={
@@ -312,10 +373,6 @@ async def login(
         }
     )
     
-    # Update user login info
-    user.last_login = datetime.utcnow()
-    user.last_activity = datetime.utcnow()
-    user.failed_login_attempts = 0  # Reset on successful login
     await db.commit()
     
     # Log successful login
@@ -341,7 +398,6 @@ async def login(
             "is_verified": user.is_verified
         }
     )
-
 
 @router.post(
     "/refresh",
