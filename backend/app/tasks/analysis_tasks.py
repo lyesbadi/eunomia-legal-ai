@@ -1,139 +1,146 @@
 """
-EUNOMIA Legal AI Platform - Celery Analysis Tasks
-Asynchronous tasks for complete document AI analysis pipeline
+EUNOMIA Legal AI Platform - Celery Tasks
+Async tasks for document analysis pipeline
 """
-from typing import Dict, Any, Optional, List
-import asyncio
-import logging
+from typing import Dict, Any, List, Optional
 from datetime import datetime
+from pathlib import Path
+
 from celery import Task
+from celery.signals import task_prerun, task_postrun, task_failure
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.celery_app import celery_app
-from app.core.database import DatabaseManager
+from app.core.database import get_db_session
+from app.core.config import settings
 from app.models.document import Document, DocumentStatus
-from app.models.analysis import Analysis
-from app.models.audit_log import AuditLog, ActionType, ResourceType
-from app.services import ai_service, llm_service, vector_service
-from app.services.ai_service import AIService
-from app.services.llm_service import LLMService
-from app.services.vector_service import VectorService
+from app.models.analysis import Analysis, AnalysisStatus
+from app.models.audit_log import AuditLog, AuditAction, ResourceType
+from app.services.ai_service import ai_service
+from app.services.llm_service import llm_service
+from app.services.vector_service import vector_service
+from app.utils.text import extract_text
+import asyncio
+import logging
+
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# CUSTOM TASK BASE CLASS
+# CELERY TASK BASE CLASS
 # ============================================================================
 class CallbackTask(Task):
-    """
-    Custom Celery task with error handling and logging.
-    """
-    
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        """
-        Error handler called when task fails.
-        
-        Args:
-            exc: Exception raised
-            task_id: Unique task ID
-            args: Task positional arguments
-            kwargs: Task keyword arguments
-            einfo: Exception info
-        """
-        logger.error(f"❌ Task {self.name}[{task_id}] failed: {exc}")
-        logger.error(f"   Args: {args}")
-        logger.error(f"   Exception info: {einfo}")
+    """Base task with callbacks for monitoring."""
     
     def on_success(self, retval, task_id, args, kwargs):
-        """
-        Success handler called when task completes.
-        
-        Args:
-            retval: Return value of task
-            task_id: Unique task ID
-            args: Task positional arguments
-            kwargs: Task keyword arguments
-        """
-        logger.info(f"✅ Task {self.name}[{task_id}] completed successfully")
+        """Called when task succeeds."""
+        logger.info(f" Task {task_id} succeeded: {self.name}")
+    
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Called when task fails."""
+        logger.error(f" Task {task_id} failed: {self.name}")
+        logger.error(f"Exception: {exc}")
     
     def on_retry(self, exc, task_id, args, kwargs, einfo):
-        """
-        Retry handler called when task is retried.
-        
-        Args:
-            exc: Exception that caused retry
-            task_id: Unique task ID
-            args: Task positional arguments
-            kwargs: Task keyword arguments
-            einfo: Exception info
-        """
-        logger.warning(f"🔄 Task {self.name}[{task_id}] retrying due to: {exc}")
+        """Called when task is retried."""
+        logger.warning(f" Task {task_id} retrying: {self.name}")
 
 
 # ============================================================================
-# HELPER FUNCTIONS
+# ASYNC HELPERS
 # ============================================================================
 def run_async(coro):
     """
     Run async coroutine in sync context.
     
     Args:
-        coro: Async coroutine to run
+        coro: Coroutine to run
         
     Returns:
-        Result of coroutine
+        Coroutine result
     """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
-async def get_db_session() -> AsyncSession:
-    """
-    Get async database session for tasks.
-    
-    Returns:
-        AsyncSession instance
-    """
-    session_factory = DatabaseManager.get_session_factory()
-    return session_factory()
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(coro)
 
 
 async def update_document_status(
     session: AsyncSession,
     document_id: int,
-    status: DocumentStatus,
-    error_message: Optional[str] = None
+    status: DocumentStatus
 ) -> None:
     """
-    Update document processing status.
+    Update document status.
     
     Args:
         session: Database session
         document_id: Document ID
         status: New status
-        error_message: Error message if failed
     """
     document = await session.get(Document, document_id)
     if document:
         document.status = status
-        if error_message:
-            document.error_message = error_message
-        if status == DocumentStatus.PROCESSING:
-            document.processing_started_at = datetime.utcnow()
-        elif status in [DocumentStatus.COMPLETED, DocumentStatus.FAILED]:
-            document.processing_completed_at = datetime.utcnow()
         await session.commit()
 
 
-async def create_audit_log(
+async def create_analysis_record(
+    session: AsyncSession,
+    document_id: int,
+    user_id: int
+) -> Analysis:
+    """
+    Create initial analysis record.
+    
+    Args:
+        session: Database session
+        document_id: Document ID
+        user_id: User ID
+        
+    Returns:
+        Created analysis record
+    """
+    analysis = Analysis(
+        document_id=document_id,
+        user_id=user_id,
+        status=AnalysisStatus.PENDING
+    )
+    session.add(analysis)
+    await session.commit()
+    await session.refresh(analysis)
+    return analysis
+
+
+async def update_analysis_results(
+    session: AsyncSession,
+    analysis: Analysis,
+    results: Dict[str, Any]
+) -> None:
+    """
+    Update analysis with results.
+    
+    Args:
+        session: Database session
+        analysis: Analysis record
+        results: Analysis results
+    """
+    analysis.document_type = results.get("document_type")
+    analysis.classification_confidence = results.get("classification_confidence")
+    analysis.entities = results.get("entities", {})
+    analysis.unfair_clauses = results.get("unfair_clauses", [])
+    analysis.summary = results.get("summary")
+    analysis.risk_score = results.get("risk_score")
+    analysis.recommendations = results.get("recommendations", [])
+    analysis.processing_time = results.get("processing_time")
+    analysis.status = AnalysisStatus.COMPLETED
+    analysis.completed_at = datetime.utcnow()
+    
+    await session.commit()
+
+
+async def log_audit_event(
     session: AsyncSession,
     user_id: int,
-    action: ActionType,
+    action: AuditAction,
     resource_type: ResourceType,
     resource_id: int,
     success: bool = True,
@@ -141,7 +148,7 @@ async def create_audit_log(
     details: Optional[Dict[str, Any]] = None
 ) -> None:
     """
-    Create audit log entry.
+    Log audit event.
     
     Args:
         session: Database session
@@ -225,7 +232,7 @@ async def _analyze_document_async(
     
     try:
         logger.info("=" * 80)
-        logger.info(f"🚀 Starting analysis for document {document_id}")
+        logger.info(f" Starting analysis for document {document_id}")
         logger.info("=" * 80)
         
         # ====================================================================
@@ -235,235 +242,215 @@ async def _analyze_document_async(
         if not document:
             raise ValueError(f"Document {document_id} not found")
         
-        if not document.extracted_text:
-            raise ValueError(f"Document {document_id} has no extracted text")
-        
         await update_document_status(session, document_id, DocumentStatus.PROCESSING)
         
-        text = document.extracted_text
-        logger.info(f"📄 Document loaded: {len(text)} characters")
+        # ====================================================================
+        # STEP 0.5: Extract text if not already done
+        # ====================================================================
+        text: str
+        
+        if not document.extracted_text_path or document.extracted_text_path == "":
+            logger.info(" No extracted text found, extracting from file...")
+            
+            # Construire le chemin absolu du fichier original
+            original_file_path = Path(settings.UPLOAD_DIR) / document.file_path
+            
+            if not original_file_path.exists():
+                raise FileNotFoundError(f"Original file not found: {original_file_path}")
+            
+            # Extraire le texte
+            logger.info(f" Extracting text from: {original_file_path}")
+            text = extract_text(original_file_path)
+            
+            if not text or len(text.strip()) < 50:
+                raise ValueError(f"Extracted text too short ({len(text)} chars), possible extraction error")
+            
+            logger.info(f" Text extracted: {len(text)} characters")
+            
+            # Sauvegarder le texte extrait dans un fichier .txt
+            # Format: uploads/user_123/contract_abc123_extracted.txt
+            extracted_filename = original_file_path.stem + "_extracted.txt"
+            extracted_file_path = original_file_path.parent / extracted_filename
+            
+            # Écrire le fichier texte
+            with open(extracted_file_path, 'w', encoding='utf-8') as f:
+                f.write(text)
+            
+            logger.info(f" Text saved to: {extracted_file_path}")
+            
+            # Mettre à jour le document dans la BDD avec le chemin RELATIF
+            # Extraire le chemin relatif depuis UPLOAD_DIR
+            relative_extracted_path = extracted_file_path.relative_to(settings.UPLOAD_DIR)
+            document.extracted_text_path = str(relative_extracted_path)
+            
+            # Commit pour sauvegarder le chemin
+            await session.commit()
+            await session.refresh(document)
+            
+            logger.info(f" Database updated: extracted_text_path = {document.extracted_text_path}")
+        
+        else:
+            # Le texte a déjà été extrait, le charger
+            logger.info(f" Loading existing extracted text: {document.extracted_text_path}")
+            
+            extracted_file_path = Path(settings.UPLOAD_DIR) / document.extracted_text_path
+            
+            if not extracted_file_path.exists():
+                raise FileNotFoundError(f"Extracted text file not found: {extracted_file_path}")
+            
+            with open(extracted_file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+            
+            logger.info(f" Text loaded: {len(text)} characters")
+        
+        # Valider que le texte est disponible
+        if not text or len(text.strip()) < 50:
+            raise ValueError(f"Document text too short for analysis ({len(text)} chars)")
+        
+        logger.info(f" Document ready for analysis: {len(text)} characters")
         
         # ====================================================================
         # STEP 1: Document Classification (Legal-BERT)
         # ====================================================================
-        logger.info("1️⃣ Running document classification...")
+        logger.info(" Running document classification...")
         classification_result = await ai_service.classify_document(text)
-        logger.info(f"✅ Classification: {classification_result['primary_class']} ({classification_result['confidence']:.2%})")
+        logger.info(f" Classification: {classification_result['primary_class']} ({classification_result['confidence']:.2%})")
         
         # ====================================================================
         # STEP 2: Named Entity Recognition (CamemBERT-NER)
         # ====================================================================
-        logger.info("2️⃣ Running Named Entity Recognition...")
+        logger.info(" Running Named Entity Recognition...")
         ner_result = await ai_service.extract_entities(text)
-        logger.info(f"✅ Entities found: {ner_result['entity_count']}")
+        logger.info(f" Entities found: {ner_result['entity_count']}")
         
         # ====================================================================
         # STEP 3: Unfair Clause Detection (Unfair-ToS)
         # ====================================================================
-        logger.info("3️⃣ Detecting unfair clauses...")
+        logger.info(" Detecting unfair clauses...")
         unfair_clauses_result = await ai_service.detect_unfair_clauses(text)
-        logger.info(f"✅ Unfair clauses: {unfair_clauses_result['unfair_clause_count']}")
+        logger.info(f" Unfair clauses: {len(unfair_clauses_result['clauses'])}")
         
         # ====================================================================
         # STEP 4: Document Summarization (BART)
         # ====================================================================
-        logger.info("4️⃣ Generating document summary...")
+        logger.info(" Generating summary...")
         summary_result = await ai_service.summarize_document(text)
-        logger.info(f"✅ Summary generated: {len(summary_result['summary_text'])} characters")
+        logger.info(f" Summary generated: {len(summary_result['summary'])} chars")
         
         # ====================================================================
-        # STEP 5: Risk Assessment Calculation
+        # STEP 5: Risk Assessment
         # ====================================================================
-        logger.info("5️⃣ Calculating risk assessment...")
-        risk_assessment = await _calculate_risk_assessment(
-            unfair_clauses_result,
-            ner_result,
-            classification_result
+        logger.info(" Calculating risk score...")
+        risk_score = _calculate_risk_score(
+            unfair_clauses=unfair_clauses_result['clauses'],
+            classification=classification_result
         )
-        logger.info(f"✅ Risk level: {risk_assessment['risk_level']} (score: {risk_assessment['risk_score']:.2f})")
+        logger.info(f" Risk score: {risk_score:.2f}/100")
         
         # ====================================================================
-        # STEP 6: LLM Recommendations (EuroLLM-9B)
+        # STEP 6: LLM Recommendations (Ollama Mistral)
         # ====================================================================
-        logger.info("6️⃣ Generating LLM recommendations...")
-        llm_recommendations = await llm_service.generate_recommendations(
-            document_text=text,
+        logger.info(" Generating recommendations...")
+        recommendations_result = await llm_service.generate_recommendations(
             document_type=classification_result['primary_class'],
-            classification=classification_result,
-            unfair_clauses=unfair_clauses_result['unfair_clauses'],
-            risk_assessment=risk_assessment
+            entities=ner_result['entities'],
+            unfair_clauses=unfair_clauses_result['clauses'],
+            risk_score=risk_score
         )
-        logger.info(f"✅ Recommendations generated: {len(llm_recommendations['action_items'])} action items")
+        logger.info(f" Recommendations: {len(recommendations_result['recommendations'])}")
         
         # ====================================================================
-        # STEP 7: Language Detection
+        # STEP 7: Vector Embeddings & Indexing (Qdrant)
         # ====================================================================
-        logger.info("7️⃣ Detecting document language...")
-        detected_language, language_confidence = await ai_service.detect_language(text)
-        logger.info(f"✅ Language: {detected_language} ({language_confidence:.2%})")
-        
-        # ====================================================================
-        # STEP 8: Vector Embeddings & Indexing (Qdrant)
-        # ====================================================================
-        logger.info("8️⃣ Generating embeddings and indexing in Qdrant...")
-        
-        # Index full document
+        logger.info(" Indexing document in vector database...")
         qdrant_point_id = await vector_service.index_document(
             document_id=document_id,
             text=text,
             metadata={
                 "user_id": user_id,
-                "document_type": classification_result['primary_class'],
-                "risk_level": risk_assessment['risk_level'],
-                "language": detected_language
-            }
-        )
-        
-        # Index document chunks for precise search
-        chunks = _split_text_into_chunks(text, chunk_size=500)
-        chunk_point_ids = await vector_service.index_document_chunks(
-            document_id=document_id,
-            chunks=chunks,
-            metadata={
-                "user_id": user_id,
+                "filename": document.filename,
                 "document_type": classification_result['primary_class']
             }
         )
         
-        logger.info(f"✅ Indexed in Qdrant: 1 full doc + {len(chunk_point_ids)} chunks")
-        
-        # ====================================================================
-        # STEP 9: Save Analysis Results to Database
-        # ====================================================================
-        logger.info("9️⃣ Saving analysis results to database...")
-        
-        analysis = Analysis(
+        # Index document chunks for semantic search
+        chunks = _split_text_into_chunks(text)
+        chunk_ids = await vector_service.index_document_chunks(
             document_id=document_id,
-            
-            # Classification
-            document_class=classification_result['primary_class'],
-            classification_confidence=classification_result['confidence'],
-            classification_details=classification_result,
-            
-            # NER
-            entities_detected=ner_result,
-            entity_count=ner_result['entity_count'],
-            
-            # Unfair Clauses
-            unfair_clauses=unfair_clauses_result,
-            has_unfair_clauses=unfair_clauses_result['unfair_clause_count'] > 0,
-            unfair_clause_score=1.0 - unfair_clauses_result['fairness_score'],
-            
-            # Summary
-            summary_text=summary_result['summary_text'],
-            summary_length=summary_result['summary_length'],
-            summary_confidence=summary_result['compression_ratio'],
-            
-            # Risk Assessment
-            risk_level=risk_assessment['risk_level'],
-            risk_score=risk_assessment['risk_score'],
-            risk_factors=risk_assessment['risk_factors'],
-            
-            # LLM Recommendations
-            recommendations_text=llm_recommendations['recommendation_text'],
-            llm_generated=True,
-            llm_model_version=llm_recommendations['model_used'],
-            
-            # Language
-            detected_language=detected_language,
-            language_confidence=language_confidence,
-            
-            # Embeddings
-            embedding_generated=True,
-            qdrant_point_id=qdrant_point_id,
-            chunks_count=len(chunk_point_ids),
-            
-            # Processing metadata
-            processing_started_at=start_time,
-            completed_at=datetime.utcnow()
+            chunks=chunks,
+            metadata={"user_id": user_id}
         )
-        
-        session.add(analysis)
-        await session.commit()
-        await session.refresh(analysis)
-        
-        logger.info(f"✅ Analysis saved with ID: {analysis.id}")
+        logger.info(f" Indexed: 1 document + {len(chunk_ids)} chunks")
         
         # ====================================================================
-        # STEP 10: Update document status to COMPLETED
+        # STEP 8: Save results to database
         # ====================================================================
-        await update_document_status(session, document_id, DocumentStatus.COMPLETED)
+        logger.info(" Saving analysis results...")
         
-        # ====================================================================
-        # STEP 11: Create audit log
-        # ====================================================================
+        analysis = await create_analysis_record(session, document_id, user_id)
+        
         processing_time = (datetime.utcnow() - start_time).total_seconds()
         
-        await create_audit_log(
+        results = {
+            "document_type": classification_result['primary_class'],
+            "classification_confidence": classification_result['confidence'],
+            "entities": ner_result['entities'],
+            "unfair_clauses": unfair_clauses_result['clauses'],
+            "summary": summary_result['summary'],
+            "risk_score": risk_score,
+            "recommendations": recommendations_result['recommendations'],
+            "processing_time": processing_time,
+            "qdrant_point_id": qdrant_point_id,
+            "chunks_count": len(chunk_ids)
+        }
+        
+        await update_analysis_results(session, analysis, results)
+        await update_document_status(session, document_id, DocumentStatus.COMPLETED)
+        
+        # Log audit event
+        await log_audit_event(
             session=session,
             user_id=user_id,
-            action=ActionType.ANALYSIS_COMPLETE,
-            resource_type=ResourceType.ANALYSIS,
-            resource_id=analysis.id,
+            action=AuditAction.ANALYSIS_COMPLETED,
+            resource_type=ResourceType.DOCUMENT,
+            resource_id=document_id,
             success=True,
-            details={
-                "document_id": document_id,
-                "document_type": classification_result['primary_class'],
-                "risk_level": risk_assessment['risk_level'],
-                "unfair_clauses": unfair_clauses_result['unfair_clause_count'],
-                "processing_time_seconds": processing_time,
-                "models_used": [
-                    "legal-bert",
-                    "camembert-ner",
-                    "unfair-tos",
-                    "bart",
-                    "sentence-transformers",
-                    "eurollm-9b"
-                ]
-            }
+            details={"processing_time": processing_time, "risk_score": risk_score}
         )
         
         logger.info("=" * 80)
-        logger.info(f"✅ Analysis COMPLETED in {processing_time:.2f}s")
+        logger.info(f" Analysis completed in {processing_time:.2f}s")
         logger.info("=" * 80)
         
-        # Return summary
         return {
             "status": "completed",
-            "analysis_id": analysis.id,
             "document_id": document_id,
-            "document_type": classification_result['primary_class'],
-            "risk_level": risk_assessment['risk_level'],
-            "unfair_clauses_count": unfair_clauses_result['unfair_clause_count'],
-            "entities_count": ner_result['entity_count'],
-            "processing_time_seconds": processing_time
+            "analysis_id": analysis.id,
+            "processing_time": processing_time,
+            "results": results
         }
     
     except Exception as e:
-        logger.error(f"❌ Analysis failed for document {document_id}: {e}", exc_info=True)
+        logger.error(f" Analysis failed for document {document_id}: {e}")
         
-        # Update document status to FAILED
-        await update_document_status(
-            session,
-            document_id,
-            DocumentStatus.FAILED,
-            error_message=str(e)
-        )
+        # Update statuses
+        await update_document_status(session, document_id, DocumentStatus.FAILED)
         
-        # Create audit log for failure
-        await create_audit_log(
+        # Log audit event
+        await log_audit_event(
             session=session,
             user_id=user_id,
-            action=ActionType.ANALYSIS_FAILED,
+            action=AuditAction.ANALYSIS_FAILED,
             resource_type=ResourceType.DOCUMENT,
             resource_id=document_id,
             success=False,
             error_message=str(e)
         )
         
-        # Retry task if not max retries
+        # Retry if possible
         if task.request.retries < task.max_retries:
-            raise task.retry(exc=e, countdown=60)
+            logger.info(f" Retrying analysis (attempt {task.request.retries + 1}/{task.max_retries})")
+            raise task.retry(exc=e)
         
         raise
     
@@ -472,156 +459,66 @@ async def _analyze_document_async(
 
 
 # ============================================================================
-# HELPER FUNCTIONS FOR ANALYSIS
+# HELPER FUNCTIONS
 # ============================================================================
-async def _calculate_risk_assessment(
-    unfair_clauses_result: Dict[str, Any],
-    ner_result: Dict[str, Any],
-    classification_result: Dict[str, Any]
-) -> Dict[str, Any]:
+def _calculate_risk_score(
+    unfair_clauses: List[Dict[str, Any]],
+    classification: Dict[str, Any]
+) -> float:
     """
-    Calculate overall risk assessment based on analysis results.
+    Calculate risk score based on analysis results.
     
     Args:
-        unfair_clauses_result: Unfair clause detection results
-        ner_result: NER results
-        classification_result: Classification results
+        unfair_clauses: Detected unfair clauses
+        classification: Document classification
         
     Returns:
-        Risk assessment dictionary
+        Risk score (0-100)
     """
-    risk_factors = []
-    risk_score = 0.0
+    score = 0.0
     
-    # Factor 1: Unfair clauses
-    unfair_count = unfair_clauses_result['unfair_clause_count']
-    fairness_score = unfair_clauses_result['fairness_score']
+    # Base score from unfair clauses (max 60 points)
+    if unfair_clauses:
+        clause_scores = [c.get('severity', 0.5) for c in unfair_clauses]
+        avg_severity = sum(clause_scores) / len(clause_scores)
+        score += avg_severity * 60
     
-    if unfair_count > 0:
-        unfairness_weight = min(unfair_count / 5.0, 1.0) * 0.5  # Max 50% weight
-        risk_score += unfairness_weight
-        
-        severity_distribution = {}
-        for clause in unfair_clauses_result['unfair_clauses']:
-            severity = clause['severity']
-            severity_distribution[severity] = severity_distribution.get(severity, 0) + 1
-        
-        risk_factors.append({
-            "factor": "unfair_clauses",
-            "severity": "high" if unfair_count >= 3 else "medium",
-            "score": unfairness_weight,
-            "description": f"{unfair_count} clauses potentiellement abusives détectées",
-            "details": severity_distribution
-        })
+    # Add score based on document type (max 20 points)
+    high_risk_types = ['bail_commercial', 'contrat_travail', 'vente']
+    if classification['primary_class'] in high_risk_types:
+        score += 20
     
-    # Factor 2: Document type risk
-    doc_type = classification_result['primary_class']
-    type_risk_map = {
-        'terms_of_service': 0.3,
-        'privacy_policy': 0.2,
-        'contract': 0.25,
-        'legal_notice': 0.1,
-        'other': 0.15
-    }
+    # Add score based on classification confidence (max 20 points)
+    # Lower confidence = higher risk
+    confidence_penalty = (1 - classification['confidence']) * 20
+    score += confidence_penalty
     
-    type_risk = type_risk_map.get(doc_type, 0.15)
-    risk_score += type_risk
-    
-    if type_risk >= 0.2:
-        risk_factors.append({
-            "factor": "document_type",
-            "severity": "medium",
-            "score": type_risk,
-            "description": f"Type de document '{doc_type}' nécessite attention particulière",
-            "details": {"document_type": doc_type}
-        })
-    
-    # Factor 3: Entity complexity
-    entity_count = ner_result['entity_count']
-    if entity_count > 20:
-        complexity_risk = 0.15
-        risk_score += complexity_risk
-        
-        risk_factors.append({
-            "factor": "complexity",
-            "severity": "low",
-            "score": complexity_risk,
-            "description": f"Document complexe avec {entity_count} entités identifiées",
-            "details": ner_result['by_type']
-        })
-    
-    # Normalize risk score (0-1)
-    risk_score = min(risk_score, 1.0)
-    
-    # Determine risk level
-    if risk_score >= 0.75:
-        risk_level = "critical"
-    elif risk_score >= 0.5:
-        risk_level = "high"
-    elif risk_score >= 0.25:
-        risk_level = "medium"
-    else:
-        risk_level = "low"
-    
-    return {
-        "risk_level": risk_level,
-        "risk_score": risk_score,
-        "risk_factors": risk_factors,
-        "total_risks": len(risk_factors),
-        "recommendation": _get_risk_recommendation(risk_level),
-        "requires_legal_review": risk_level in ["high", "critical"]
-    }
+    return min(score, 100.0)
 
 
-def _get_risk_recommendation(risk_level: str) -> str:
+def _split_text_into_chunks(text: str, chunk_size: int = 500) -> List[str]:
     """
-    Get recommendation based on risk level.
-    
-    Args:
-        risk_level: Risk level (low, medium, high, critical)
-        
-    Returns:
-        Recommendation text
-    """
-    recommendations = {
-        "low": "Ce document présente peu de risques. Une lecture attentive suffit.",
-        "medium": "Ce document nécessite une attention particulière sur certains points. Recommandé de consulter les recommandations détaillées.",
-        "high": "Ce document présente des risques significatifs. Consultation d'un avocat fortement recommandée avant signature.",
-        "critical": "⚠️ ATTENTION : Ce document présente des risques majeurs. Ne PAS signer sans revue approfondie par un avocat."
-    }
-    
-    return recommendations.get(risk_level, recommendations["medium"])
-
-
-def _split_text_into_chunks(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
-    """
-    Split text into overlapping chunks for indexing.
+    Split text into chunks for vector indexing.
     
     Args:
         text: Text to split
-        chunk_size: Size of each chunk in characters
-        overlap: Overlap between chunks
+        chunk_size: Approximate chunk size in words
         
     Returns:
         List of text chunks
     """
+    words = text.split()
     chunks = []
-    start = 0
     
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end]
-        
-        if chunk.strip():  # Only add non-empty chunks
-            chunks.append(chunk)
-        
-        start += chunk_size - overlap
+    for i in range(0, len(words), chunk_size):
+        chunk = ' '.join(words[i:i + chunk_size])
+        chunks.append(chunk)
     
     return chunks
 
 
 # ============================================================================
-# EMBEDDINGS-ONLY TASK (for re-indexing)
+# EMBEDDINGS GENERATION TASK
 # ============================================================================
 @celery_app.task(
     bind=True,
@@ -631,7 +528,7 @@ def _split_text_into_chunks(text: str, chunk_size: int = 500, overlap: int = 50)
 )
 def generate_embeddings(self, document_id: int) -> Dict[str, Any]:
     """
-    Generate and index embeddings for a document (without full analysis).
+    Generate and index embeddings for a document.
     
     Used for:
     - Re-indexing existing documents
@@ -660,17 +557,29 @@ async def _generate_embeddings_async(task: Task, document_id: int) -> Dict[str, 
     session = await get_db_session()
     
     try:
-        logger.info(f"🔍 Generating embeddings for document {document_id}")
+        logger.info(f" Generating embeddings for document {document_id}")
         
         # Load document
         document = await session.get(Document, document_id)
-        if not document or not document.extracted_text:
-            raise ValueError(f"Document {document_id} not found or has no text")
+        if not document:
+            raise ValueError(f"Document {document_id} not found")
+        
+        # Load extracted text
+        if not document.extracted_text_path:
+            raise ValueError(f"Document {document_id} has no extracted text")
+        
+        extracted_file_path = Path(settings.UPLOAD_DIR) / document.extracted_text_path
+        
+        if not extracted_file_path.exists():
+            raise FileNotFoundError(f"Extracted text file not found: {extracted_file_path}")
+        
+        with open(extracted_file_path, 'r', encoding='utf-8') as f:
+            text = f.read()
         
         # Generate embeddings and index
         qdrant_point_id = await vector_service.index_document(
             document_id=document_id,
-            text=document.extracted_text,
+            text=text,
             metadata={
                 "user_id": document.user_id,
                 "filename": document.filename
@@ -678,14 +587,14 @@ async def _generate_embeddings_async(task: Task, document_id: int) -> Dict[str, 
         )
         
         # Index chunks
-        chunks = _split_text_into_chunks(document.extracted_text)
+        chunks = _split_text_into_chunks(text)
         chunk_ids = await vector_service.index_document_chunks(
             document_id=document_id,
             chunks=chunks,
             metadata={"user_id": document.user_id}
         )
         
-        logger.info(f"✅ Embeddings generated: 1 doc + {len(chunk_ids)} chunks")
+        logger.info(f" Embeddings generated: 1 doc + {len(chunk_ids)} chunks")
         
         return {
             "status": "completed",
@@ -695,7 +604,7 @@ async def _generate_embeddings_async(task: Task, document_id: int) -> Dict[str, 
         }
     
     except Exception as e:
-        logger.error(f"❌ Embeddings generation failed: {e}")
+        logger.error(f" Embeddings generation failed: {e}")
         if task.request.retries < task.max_retries:
             raise task.retry(exc=e)
         raise
@@ -723,28 +632,68 @@ def analyze_documents_batch(self, document_ids: List[int], user_id: int) -> Dict
     Returns:
         Batch analysis results
     """
-    logger.info(f"📦 Batch analysis started: {len(document_ids)} documents")
+    return run_async(_analyze_documents_batch_async(self, document_ids, user_id))
+
+
+async def _analyze_documents_batch_async(
+    task: Task,
+    document_ids: List[int],
+    user_id: int
+) -> Dict[str, Any]:
+    """
+    Async implementation of batch analysis.
     
-    results = []
+    Args:
+        task: Celery task instance
+        document_ids: List of document IDs
+        user_id: User ID
+        
+    Returns:
+        Batch results
+    """
+    logger.info(f" Starting batch analysis for {len(document_ids)} documents")
+    
+    results = {
+        "total": len(document_ids),
+        "succeeded": 0,
+        "failed": 0,
+        "errors": []
+    }
+    
     for doc_id in document_ids:
         try:
-            result = analyze_document.delay(doc_id, user_id)
-            results.append({
-                "document_id": doc_id,
-                "task_id": result.id,
-                "status": "queued"
-            })
+            await _analyze_document_async(task, doc_id, user_id)
+            results["succeeded"] += 1
         except Exception as e:
-            logger.error(f"❌ Failed to queue document {doc_id}: {e}")
-            results.append({
+            results["failed"] += 1
+            results["errors"].append({
                 "document_id": doc_id,
-                "status": "error",
                 "error": str(e)
             })
+            logger.error(f" Failed to analyze document {doc_id}: {e}")
     
-    return {
-        "total_documents": len(document_ids),
-        "queued": len([r for r in results if r['status'] == 'queued']),
-        "failed": len([r for r in results if r['status'] == 'error']),
-        "results": results
-    }
+    logger.info(f" Batch completed: {results['succeeded']}/{results['total']} succeeded")
+    
+    return results
+
+
+# ============================================================================
+# CELERY SIGNAL HANDLERS
+# ============================================================================
+@task_prerun.connect
+def task_prerun_handler(task_id, task, args, kwargs, **extra):
+    """Log when task starts."""
+    logger.info(f"  Task started: {task.name} (ID: {task_id})")
+
+
+@task_postrun.connect
+def task_postrun_handler(task_id, task, args, kwargs, retval, **extra):
+    """Log when task completes."""
+    logger.info(f"  Task finished: {task.name} (ID: {task_id})")
+
+
+@task_failure.connect
+def task_failure_handler(task_id, exception, args, kwargs, traceback, einfo, **extra):
+    """Log when task fails."""
+    logger.error(f" Task failed: {task_id}")
+    logger.error(f"Exception: {exception}")
