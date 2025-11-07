@@ -21,7 +21,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc
-
+from app.tasks.analysis_tasks import analyze_document as analyze_document_task
 from app.api.deps import (
     get_db,
     get_current_user,
@@ -152,19 +152,26 @@ async def check_duplicate_file(
     return result.scalar_one_or_none()
 
 
-async def trigger_document_analysis(document_id: int) -> None:
+async def trigger_document_analysis(document_id: int, user_id: int) -> None:
     """
     Trigger background analysis for document.
     
     Args:
-        document_id: Document ID
-        
-    Note:
-        This is a placeholder. In production, this would trigger a Celery task.
+        document_id: Document ID to analyze
+        user_id: User ID (for task metadata and audit)
     """
-    # TODO: Trigger Celery task
-    # from app.tasks.analysis_tasks import analyze_document
-    # analyze_document.delay(document_id)
+    try:
+        # Appelle la tâche Celery
+        analyze_document_task.delay(document_id=document_id, user_id=user_id)
+        
+        logger.info(f"Analysis task queued for document {document_id} by user {user_id}")
+    
+    except Exception as e:
+        # Log si la mise en file d'attente échoue (ex: Redis est down)
+        logger.error(
+            f"Failed to queue analysis task for document {document_id}: {e}",
+            exc_info=True
+        )
     
     logger.info(f"Analysis triggered for document {document_id} (placeholder)")
 
@@ -335,7 +342,7 @@ async def upload_document(
             document.processing_started_at = datetime.utcnow()
             await db.commit()
             
-            background_tasks.add_task(trigger_document_analysis, document.id)
+            background_tasks.add_task(trigger_document_analysis, document.id, current_user.id)
             analysis_started = True
             
             logger.info(f"Analysis triggered for document {document.id}")
